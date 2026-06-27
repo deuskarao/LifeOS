@@ -1284,14 +1284,14 @@ function WealthClassCard({
     )
   }
 
-  // Standard → locked/blurred
+  // Standard → locked (clean design, no blur)
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: 0.05 }}
     >
-      <Card className="relative overflow-hidden border-dashed">
+      <Card className="border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-transparent">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Crown className="h-4 w-4 text-violet-500" />
@@ -1302,41 +1302,26 @@ function WealthClassCard({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="relative rounded-xl border bg-muted/30 p-6">
-            {/* Blurred preview */}
-            <div className="pointer-events-none flex select-none items-center gap-4 blur-sm">
-              <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted">
-                <Crown className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-xl font-bold">Üst-Orta Sınıf</p>
-                <p className="text-sm text-muted-foreground">
-                  Net servet 5M-20M₺ — üst gelir grubu
-                </p>
-              </div>
+          <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-500 ring-1 ring-violet-500/20">
+              <Lock className="h-7 w-7" />
             </div>
-            {/* Overlay */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">
-                  Finansal sınıf analizi Premium özelliktir
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Net servetinize göre finansal sınıfınızı görmek için
-                  Premium&apos;a geçin
-                </p>
-              </div>
-              {canUpgrade && (
-                <Button
-                  className="mt-1 gap-2 bg-violet-600 text-white hover:bg-violet-700"
-                  onClick={onUpgrade}
-                  disabled={upgrading}
-                >
-                  {upgrading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="max-w-sm">
+              <p className="text-sm font-semibold text-foreground">
+                Premium Özellik
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Net servetinize göre finansal sınıfınızı (Alt, Orta, Üst sınıf) görmek için Premium üyeliğe geçin.
+              </p>
+            </div>
+            {canUpgrade && (
+              <Button
+                className="mt-2 gap-2 bg-violet-600 text-white hover:bg-violet-700"
+                onClick={onUpgrade}
+                disabled={upgrading}
+              >
+                {upgrading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
@@ -1344,7 +1329,6 @@ function WealthClassCard({
                 </Button>
               )}
             </div>
-          </div>
         </CardContent>
       </Card>
     </motion.div>

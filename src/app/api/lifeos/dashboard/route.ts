@@ -32,7 +32,9 @@ export async function GET() {
     ])
 
     // ===== Hesaplamalar =====
+    // Net Değer = Emlaklar + Araçlar + Banka Bakiyeleri + Beklenen Bakiyeler + Varlıklar - Tüm Borçlar
     const bankTotal = banks.reduce((s: number, b: any) => s + b.balance, 0)
+    const expectedAmount = banks.reduce((s: number, b: any) => s + (b.expectedAmount || 0), 0)
     const cardDebt = cards.reduce((s: number, c: any) => s + c.balance, 0)
     const cardLimit = cards.reduce((s: number, c: any) => s + c.limit, 0)
     const loanDebt = loans.reduce((s: number, l: any) => s + l.remainingAmount, 0)
@@ -40,7 +42,7 @@ export async function GET() {
     const propertyValue = properties.reduce((s: number, p: any) => s + p.currentValue, 0)
     const vehicleValue = vehicles.reduce((s: number, v: any) => s + (v.currentValue || 0), 0)
 
-    const netWorth = bankTotal + assetTotal + propertyValue + vehicleValue - cardDebt - loanDebt
+    const netWorth = bankTotal + expectedAmount + assetTotal + propertyValue + vehicleValue - cardDebt - loanDebt
 
     const totalIncome = incomes.reduce((s: number, i: any) => s + i.amount, 0)
     const totalExpense = expenses.reduce((s: number, e: any) => s + e.amount, 0)

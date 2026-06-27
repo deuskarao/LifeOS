@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
-import { useCrud } from '@/lib/api-client'
+import { useCrud, api } from '@/lib/api-client'
 import { formatCurrency, TURKISH_BANKS } from '@/lib/lifeos'
 import { PageHeader } from '../page-header'
 import { StatCard } from '../stat-card'
@@ -71,6 +71,10 @@ export function CreditCardsView() {
   const [form, setForm] = useState<Partial<CreditCard>>({})
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payCard, setPayCard] = useState<CreditCard | null>(null)
+  const [payAmount, setPayAmount] = useState(0)
+  const [paySaving, setPaySaving] = useState(false)
 
   function openCreate() {
     setEditing(null)
@@ -284,6 +288,11 @@ export function CreditCardsView() {
                             </div>
 
                             <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                              {c.balance > 0 && (
+                                <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-emerald-600 hover:text-emerald-700" onClick={() => { setPayCard(c); setPayOpen(true) }}>
+                                  <Wallet className="h-3 w-3" /> Ödeme Yap
+                                </Button>
+                              )}
                               <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => openEdit(c)}>
                                 <Pencil className="h-3 w-3" /> Düzenle
                               </Button>
@@ -425,6 +434,55 @@ export function CreditCardsView() {
         onConfirm={onConfirmDelete}
         loading={remove.isPending}
       />
+
+      {/* Ödeme Yap Dialog */}
+      <FormDialog
+        open={payOpen}
+        onOpenChange={(o) => { setPayOpen(o); if (!o) { setPayCard(null); setPayAmount(0) } }}
+        title="Kart Borcu Öde"
+        description={payCard ? `${payCard.cardName} — Borç: ${formatCurrency(payCard.balance)}` : ''}
+        icon={Wallet}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Ödeme Tutarı</Label>
+            <MoneyInput
+              value={payAmount}
+              onValueChange={setPayAmount}
+            />
+            {payCard && payAmount > payCard.balance && (
+              <p className="text-xs text-amber-500">Borçtan fazla tutar girdiniz. Tam borç ödenecek.</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setPayOpen(false); setPayCard(null); setPayAmount(0) }}>
+              İptal
+            </Button>
+            <Button
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              disabled={paySaving || payAmount <= 0}
+              onClick={async () => {
+                if (!payCard) return
+                setPaySaving(true)
+                try {
+                  await api.post(`/api/lifeos/credit-cards/${payCard.id}/pay`, { amount: payAmount })
+                  toast.success('Ödeme başarıyla yapıldı')
+                  setPayOpen(false)
+                  setPayCard(null)
+                  setPayAmount(0)
+                } catch (e: any) {
+                  toast.error(e?.message || 'Ödeme başarısız')
+                } finally {
+                  setPaySaving(false)
+                }
+              }}
+            >
+              {paySaving ? 'Ödeniyor…' : 'Öde'}
+            </Button>
+          </div>
+        </div>
+      </FormDialog>
     </div>
   )
 }

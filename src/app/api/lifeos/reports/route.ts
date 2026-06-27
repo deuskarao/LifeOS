@@ -121,8 +121,10 @@ export async function GET(req: NextRequest) {
       .reduce<Record<string, number>>((acc, x: any) => { acc[x.category] = (acc[x.category] || 0) + x.amount; return acc }, {})
 
     const bankTotal = banks.reduce((s: number, b: any) => s + b.balance, 0)
+    const expectedAmount = banks.reduce((s: number, b: any) => s + (b.expectedAmount || 0), 0)
     const assetTotal = assets.reduce((s: number, a: any) => s + a.totalValue, 0)
     const propertyTotal = properties.reduce((s: number, p: any) => s + p.currentValue, 0)
+    const vehicleTotal = vehicles.reduce((s: number, v: any) => s + (v.currentValue || 0), 0)
     const loanDebt = loans.reduce((s: number, l: any) => s + l.remainingAmount, 0)
     const cardDebt = cards.reduce((s: number, c: any) => s + c.balance, 0)
 
@@ -164,7 +166,7 @@ export async function GET(req: NextRequest) {
         periodSavings: periodIncome - periodExpenseTotal,
         savingsRate: periodIncome > 0 ? ((periodIncome - periodExpenseTotal) / periodIncome) * 100 : 0,
         incomeChange, expenseChange,
-        netWorth: bankTotal + assetTotal + propertyTotal - loanDebt - cardDebt,
+        netWorth: bankTotal + expectedAmount + assetTotal + propertyTotal + vehicleTotal - loanDebt - cardDebt,
         bankTotal, assetTotal, propertyTotal, loanDebt, cardDebt,
         fuelTotal, serviceTotal, vehicleTotalCost: fuelTotal + serviceTotal,
       },
@@ -175,8 +177,10 @@ export async function GET(req: NextRequest) {
         fuelByVehicle: Object.entries(fuelByVehicle).map(([name, value]) => ({ name, value })),
         netWorthBreakdown: [
           { name: 'Banka', value: bankTotal },
+          { name: 'Beklenen', value: expectedAmount },
           { name: 'Varlıklar', value: assetTotal },
           { name: 'Emlak', value: propertyTotal },
+          { name: 'Araçlar', value: vehicleTotal },
           { name: 'Kredi Borcu', value: -loanDebt },
           { name: 'Kart Borcu', value: -cardDebt },
         ],

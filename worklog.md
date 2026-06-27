@@ -708,3 +708,40 @@ Stage Summary:
 - Gider grafiği: kategori isimleri 90px width ile tam görünüyor
 - Premium kart: overflow-hidden kaldırıldı, sığıyor
 - Yakıt/servis giderleri otomatik olarak Giderler menüsüne düşüyor
+
+---
+Task ID: 17
+Agent: main
+Task: Net değer fix + KPI eşitle + gider ödeme + kart ödeme + PDF fix + tasarım fix
+
+Work Log:
+- Net değer hesaplaması güncellendi: Emlak + Araç + Banka + Beklenen Bakiye + Varlıklar - Borçlar
+  • Dashboard route: expectedAmount eklendi, vehicleValue DB'den çekiliyor
+  • Reports route: aynı hesaplama + netWorthBreakdown'a Beklenen ve Araçlar eklendi
+  • Doğrulandı: home kullanıcısı net değer = 14,869,601 TL (hedef: 14,869,601, fark: 0)
+- Raporlar KPI kart boyutları eşitlendi: h-full + min-h-[110px]
+- Gider ödeme yöntemi güncellendi:
+  • Expense form: Nakit + Kredi Kartları (kart adı-banka) + Banka Hesapları (hesap adı-banka) dropdown
+  • Kart seçilince kart borcu artar, banka seçilince bakiye düşer
+  • Expense POST API: paymentSourceId + paymentSourceType ile kart/banka bakiyesi güncellenir
+  • 'Banka' ödeme yöntemi badge rengi eklendi (teal)
+- Kredi kartına ödeme yap:
+  • /api/lifeos/credit-cards/[id]/pay API — kart borcunu düşürür + gider kaydı oluşturur
+  • "Ödeme Yap" butonu (borç > 0 ise görünür, emerald renk)
+  • Ödeme dialog: tutar input + öde butonu
+- PDF yakıt duplicate fix: tek araçta "Araç - Yakit" satırı gösterilmez, sadece "Yakit Toplam"
+- Locked wealth class card tasarım fix: blur kaldırıldı, temiz kilit ekranı (icon + metin + buton)
+
+Test (Agent Browser):
+- Home login: net değer ₺14.869.601 ✓ (hedef ile birebir aynı)
+- Reports API: ok:true ✓
+- Demo login: dashboard açıldı ✓
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- Net değer = Emlak + Araç + Banka + Beklenen + Varlık - Borçlar (14,869,601 TL doğrulandı)
+- Gider oluşturunca kart/banka bakiyesi otomatik güncellenir
+- Kredi kartına ödeme yap butonu + dialog eklendi
+- PDF'de yakıt duplicate fix
+- Locked wealth class card blur kaldırıldı, temiz tasarım
+- Raporlar KPI kartları eşit boyut

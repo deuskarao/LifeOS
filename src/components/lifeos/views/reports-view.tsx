@@ -388,13 +388,14 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
 
     // === 6. ARAÇ MALİYETLERİ (tek tablo — yakıt + servis + toplam) ===
     nextY = addSectionTitle('6. Arac Maliyetleri', nextY)
-    // Araç bazında yakıt maliyetleri + servis + toplam tek tabloda
     const vehicleRows: any[] = []
-    // Araç bazında yakıt
-    data.charts.fuelByVehicle.forEach((c) => {
-      vehicleRows.push([tr(c.name + ' - Yakit'), tr(formatCurrency(c.value))])
-    })
-    // Genel toplamlar
+    // Araç bazında yakıt (eğer 1'den fazla araç varsa göster)
+    if (data.charts.fuelByVehicle.length > 1) {
+      data.charts.fuelByVehicle.forEach((c) => {
+        vehicleRows.push([tr(c.name + ' - Yakit'), tr(formatCurrency(c.value))])
+      })
+    }
+    // Genel toplamlar — Yakıt Toplam sadece çok araç varsa anlamlı, tek araçta zaten üstte göründü
     vehicleRows.push([tr('Yakit Toplam'), tr(formatCurrency(data.summary.fuelTotal))])
     vehicleRows.push([tr('Servis Toplam'), tr(formatCurrency(data.summary.serviceTotal))])
     vehicleRows.push([tr('Arac Toplam Maliyet'), tr(formatCurrency(data.summary.vehicleTotalCost))])
@@ -1191,7 +1192,7 @@ function CompactKpi({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      <Card className="relative overflow-hidden p-4 hover:shadow-md transition-shadow">
+      <Card className="relative overflow-hidden p-4 h-full min-h-[110px] hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">

@@ -107,6 +107,7 @@ const EXPENSE_CHART_COLORS: Record<string, string> = {
 const PAYMENT_METHOD_COLORS: Record<string, string> = {
   'Nakit': 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-transparent',
   'Kart': 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-transparent',
+  'Banka': 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-transparent',
   'Havale': 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-transparent',
 }
 
@@ -487,7 +488,19 @@ function ExpenseFormDialog({
   const [currency, setCurrency] = useState<string>('TRY')
   const [date, setDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<string>('Nakit')
+  const [paymentSourceId, setPaymentSourceId] = useState<string | null>(null)
+  const [paymentSourceType, setPaymentSourceType] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
+
+  // Kart ve banka hesaplarını çek
+  const { data: cards } = useQuery<{ id: string; cardName: string; bankName: string }[]>({
+    queryKey: ['credit-cards'],
+    queryFn: () => api.get('/api/lifeos/credit-cards'),
+  })
+  const { data: banks } = useQuery<{ id: string; accountName: string; bankName: string }[]>({
+    queryKey: ['bank-accounts'],
+    queryFn: () => api.get('/api/lifeos/bank-accounts'),
+  })
 
   const lastInitial = React.useRef<Expense | null>(null)
   React.useEffect(() => {
@@ -521,8 +534,10 @@ function ExpenseFormDialog({
       currency,
       date: date ? new Date(date).toISOString() : new Date().toISOString(),
       paymentMethod,
+      paymentSourceId,
+      paymentSourceType,
       notes: notes.trim() || null,
-    })
+    } as any)
   }
 
   return (
@@ -584,16 +599,49 @@ function ExpenseFormDialog({
 
         <div className="space-y-1.5">
           <Label>Ödeme Yöntemi</Label>
-          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+          <Select
+            value={paymentSourceId ? `${paymentSourceType}:${paymentSourceId}` : paymentMethod}
+            onValueChange={(v) => {
+              if (v === 'Nakit') {
+                setPaymentMethod('Nakit')
+                setPaymentSourceId(null)
+                setPaymentSourceType(null)
+              } else if (v.startsWith('card:')) {
+                setPaymentMethod('Kart')
+                setPaymentSourceId(v.slice(5))
+                setPaymentSourceType('card')
+              } else if (v.startsWith('bank:')) {
+                setPaymentMethod('Banka')
+                setPaymentSourceId(v.slice(5))
+                setPaymentSourceType('bank')
+              }
+            }}
+          >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PAYMENT_METHODS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
+              <SelectItem value="Nakit">Nakit</SelectItem>
+              {cards && cards.length > 0 && (
+                <>
+                  <p className="px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">Kredi Kartları</p>
+                  {cards.map((c) => (
+                    <SelectItem key={c.id} value={`card:${c.id}`}>
+                      {c.cardName} — {c.bankName}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+              {banks && banks.length > 0 && (
+                <>
+                  <p className="px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">Banka Hesapları</p>
+                  {banks.map((b) => (
+                    <SelectItem key={b.id} value={`bank:${b.id}`}>
+                      {b.accountName} — {b.bankName}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
