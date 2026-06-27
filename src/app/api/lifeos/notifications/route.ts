@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
-import { ok } from '@/lib/lifeos'
+import { ok, fail } from '@/lib/lifeos'
+import { getStore } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,28 +18,37 @@ interface Notification {
 
 /** Tüm finansal veriyi tarar ve gerçek bildirimler üretir. */
 export async function GET(req: NextRequest) {
-  const url = new URL(req.url)
-  const onlyUnread = url.searchParams.get('unread') === '1'
+  try {
+    const { store, user } = await getStore()
+    const uid = user.role === 'admin' ? 'admin-all' : user.id
 
-  const now = new Date()
-  const today = now.getDate()
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const url = new URL(req.url)
+    const onlyUnread = url.searchParams.get('unread') === '1'
 
-  const [banks, cards, loans, incomes, expenses, properties, vehicles, services] = await Promise.all([
-    db.bankAccount.findMany(),
-    db.creditCard.findMany(),
-    db.loan.findMany(),
-    db.income.findMany({ where: { date: { gte: thisMonthStart } } }),
-    db.expense.findMany({ where: { date: { gte: thisMonthStart } } }),
-    db.property.findMany({ include: { contracts: true } }),
-    db.vehicle.findMany({ include: { serviceRecords: { orderBy: { date: 'desc' }, take: 1 } } }),
-    db.vehicleService.findMany({ orderBy: { date: 'desc' }, take: 10 }),
-  ])
+    const now = new Date()
+    const today = now.getDate()
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
-  const notifications: Notification[] = []
+    const [banks, cards, loans, incomes, expenses, properties, vehicles, services] = await Promise.all([
+      store.list('bank-accounts', uid),
+      store.list('credit-cards', uid),
+      store.list('loans', uid),
+      store.list('income', uid, { months: 1 }),
+      store.list('expenses', uid, { months: 1 }),
+      store.list('properties', uid),
+      store.list('vehicles', uid),
+      store.list('services', uid),
+    ])
 
-  // 1. Kredi kartı ödeme günleri
+    // Vehicles için son servis kaydını ekle
+    const vehiclesWithService = vehicles.map((v: any) => ({
+      ...v,
+      serviceRecords: services.filter((s: any) => s.vehicleId === v.id).slice(0, 1),
+    }))
+
+    const notifications: Notification[] = []
+
+    // 1. Kredi kartı ödeme günleri
   for (const card of cards) {
     if (card.balance <= 0) continue
     const daysLeft = card.dueDay - today
@@ -202,7 +211,7 @@ export async function GET(req: NextRequest) {
   }
 
   // 7. Araç servis zamanı (son servisten 6+ ay veya 10000+ km geçtiyse)
-  for (const vehicle of vehicles) {
+  for (const vehicle of vehiclesWithService) {
     const lastService = vehicle.serviceRecords[0]
     if (!lastService) {
       notifications.push({
@@ -245,4 +254,8 @@ export async function GET(req: NextRequest) {
     unreadCount: notifications.filter((n) => n.severity === 'high').length,
     totalCount: notifications.length,
   })
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNAUTHORIZED') return fail('Yetkisiz', 401)
+    throw e
+  }
 }

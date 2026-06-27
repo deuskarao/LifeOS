@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
 import { ok, fail, readBody } from '@/lib/lifeos'
+import { getStore } from '@/lib/store'
 import ZAI from 'z-ai-web-dev-sdk'
 
 export const dynamic = 'force-dynamic'
@@ -15,45 +15,48 @@ interface Insight {
 
 /** Kullanıcının finansal verisini toparla ve AI'a analiz ettir. */
 async function buildContext() {
+  const { store, user } = await getStore()
+  const uid = user.role === 'admin' ? 'admin-all' : user.id
+
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1)
 
   const [banks, cards, loans, assets, incomes, expenses, properties, vehicles, fuel, services] = await Promise.all([
-    db.bankAccount.findMany(),
-    db.creditCard.findMany(),
-    db.loan.findMany(),
-    db.asset.findMany(),
-    db.income.findMany({ where: { date: { gte: sixMonthsAgo } } }),
-    db.expense.findMany({ where: { date: { gte: sixMonthsAgo } } }),
-    db.property.findMany({ include: { contracts: true } }),
-    db.vehicle.findMany(),
-    db.vehicleFuel.findMany({ where: { date: { gte: sixMonthsAgo } } }),
-    db.vehicleService.findMany({ where: { date: { gte: sixMonthsAgo } } }),
+    store.list('bank-accounts', uid),
+    store.list('credit-cards', uid),
+    store.list('loans', uid),
+    store.list('assets', uid),
+    store.list('income', uid, { months: 6 }),
+    store.list('expenses', uid, { months: 6 }),
+    store.list('properties', uid),
+    store.list('vehicles', uid),
+    store.list('fuel', uid),
+    store.list('services', uid),
   ])
 
-  const bankTotal = banks.reduce((s, b) => s + b.balance, 0)
-  const cardDebt = cards.reduce((s, c) => s + c.balance, 0)
-  const cardLimit = cards.reduce((s, c) => s + c.limit, 0)
-  const loanDebt = loans.reduce((s, l) => s + l.remainingAmount, 0)
-  const assetTotal = assets.reduce((s, a) => s + a.totalValue, 0)
-  const propertyValue = properties.reduce((s, p) => s + p.currentValue, 0)
+  const bankTotal = banks.reduce((s: number, b: any) => s + b.balance, 0)
+  const cardDebt = cards.reduce((s: number, c: any) => s + c.balance, 0)
+  const cardLimit = cards.reduce((s: number, c: any) => s + c.limit, 0)
+  const loanDebt = loans.reduce((s: number, l: any) => s + l.remainingAmount, 0)
+  const assetTotal = assets.reduce((s: number, a: any) => s + a.totalValue, 0)
+  const propertyValue = properties.reduce((s: number, p: any) => s + p.currentValue, 0)
 
-  const thisMonthIncome = incomes.filter((x) => x.date >= monthStart).reduce((s, x) => s + x.amount, 0)
-  const lastMonthIncome = incomes.filter((x) => x.date >= lastMonthStart && x.date < monthStart).reduce((s, x) => s + x.amount, 0)
-  const thisMonthExpense = expenses.filter((x) => x.date >= monthStart).reduce((s, x) => s + x.amount, 0)
-  const lastMonthExpense = expenses.filter((x) => x.date >= lastMonthStart && x.date < monthStart).reduce((s, x) => s + x.amount, 0)
+  const thisMonthIncome = incomes.filter((x: any) => new Date(x.date) >= monthStart).reduce((s: number, x: any) => s + x.amount, 0)
+  const lastMonthIncome = incomes.filter((x: any) => new Date(x.date) >= lastMonthStart && new Date(x.date) < monthStart).reduce((s: number, x: any) => s + x.amount, 0)
+  const thisMonthExpense = expenses.filter((x: any) => new Date(x.date) >= monthStart).reduce((s: number, x: any) => s + x.amount, 0)
+  const lastMonthExpense = expenses.filter((x: any) => new Date(x.date) >= lastMonthStart && new Date(x.date) < monthStart).reduce((s: number, x: any) => s + x.amount, 0)
 
   const expenseByCategory = expenses
-    .filter((e) => e.date >= sixMonthsAgo)
-    .reduce<Record<string, number>>((acc, e) => {
+    .filter((e: any) => new Date(e.date) >= sixMonthsAgo)
+    .reduce<Record<string, number>>((acc, e: any) => {
       acc[e.category] = (acc[e.category] || 0) + e.amount
       return acc
     }, {})
 
-  const fuelTotal = fuel.reduce((s, f) => s + f.amount, 0)
-  const serviceTotal = services.reduce((s, x) => s + x.amount, 0)
+  const fuelTotal = fuel.reduce((s: number, f: any) => s + f.amount, 0)
+  const serviceTotal = services.reduce((s: number, x: any) => s + x.amount, 0)
 
   return {
     netWorth: bankTotal + assetTotal + propertyValue - cardDebt - loanDebt,
@@ -65,18 +68,18 @@ async function buildContext() {
     cardUsageRate: cardLimit > 0 ? (cardDebt / cardLimit) * 100 : 0,
     loanDebt,
     loanCount: loans.length,
-    monthlyLoanPayment: loans.reduce((s, l) => s + l.monthlyPayment, 0),
+    monthlyLoanPayment: loans.reduce((s: number, l: any) => s + l.monthlyPayment, 0),
     thisMonthIncome,
     lastMonthIncome,
     thisMonthExpense,
     lastMonthExpense,
     savingsRate: thisMonthIncome > 0 ? ((thisMonthIncome - thisMonthExpense) / thisMonthIncome) * 100 : 0,
     expenseByCategory,
-    assets: assets.map((a) => ({ type: a.assetType, name: a.name, value: a.totalValue })),
-    properties: properties.map((p) => ({
+    assets: assets.map((a: any) => ({ type: a.assetType, name: a.name, value: a.totalValue })),
+    properties: properties.map((p: any) => ({
       name: p.name,
       value: p.currentValue,
-      rent: p.contracts.find((c) => c.status === 'Aktif')?.monthlyRent || 0,
+      rent: (p.contracts || []).find((c: any) => c.status === 'Aktif')?.monthlyRent || 0,
     })),
     vehicles: {
       count: vehicles.length,

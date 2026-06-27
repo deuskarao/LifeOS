@@ -197,3 +197,45 @@ Stage Summary:
 - Bildirimler tamamen çalışıyor: backend hesaplama + frontend panel + prefs senkronizasyon
 - Supabase için hazır: schema.supabase.prisma + .env.example + talimatlar
 - Kullanıcı Supabase'e geçmek için: cp prisma/schema.supabase.prisma prisma/schema.prisma + .env DATABASE_URL + bun run db:push
+
+---
+Task ID: 9
+Agent: main
+Task: Supabase + Auth + Admin Panel + Demo Memory Mode
+
+Work Log:
+- Prisma schema PostgreSQL'e geçirildi, tüm modellere userId eklendi (User modeli dahil)
+- .env Supabase bilgileriyle güncellendi (şifre URL-encoded: , → %2C, / → %2F)
+- `bun run db:push --force-reset` ile şema Supabase'e pushlandı
+- NextAuth.js credentials provider kuruldu (bcryptjs ile şifre hashleme)
+- 3 seed kullanıcı: admin@lifeos.app/admin123, demo@lifeos.app/demo123, ahmet@lifeos.app/user123
+- `src/lib/store.ts` — data store abstraction:
+  • getStore() session'a göre Prisma veya Memory store döndürür
+  • Demo memory store: server-side Map<sessionId, DemoData>, seed'li demo verisi
+  • Prisma store: Supabase DB, admin tüm kullanıcıların verisini görür
+  • 11 resource tipi için unified interface (list/get/create/update/delete)
+- NextAuth signOut event'inde demo memory store otomatik temizlenir (veriler sıfırlanır)
+- Tüm 22 API rotası getStore() pattern'ine migrate edildi (bank-accounts, credit-cards, loans, assets, income, expenses, properties, contracts, vehicles, fuel, services + dashboard, reports, notifications, ai-insights, admin)
+- Login page: email/şifre formu + 3 hızlı giriş butonu (Admin/Demo/User)
+- Auth gate: `/` rotasında session kontrolü, login değilse LoginView göster
+- Topbar: session'dan user info, role badge (DEMO/ADMIN), logout butonu
+- Sidebar: admin rolü için "Admin Panel" bölümü görünür
+- Admin Panel view: sistem istatistikleri (toplam kullanıcı, net değer, kayıt sayısı), kaynak dağılımı grafiği, son 7 gün aktivite, kullanıcı listesi (her kullanıcının net değeri, kayıt sayıları, rol badge)
+- Dashboard döngüsel JSON hatası düzeltildi (properties serialize edilirken contracts sadeleştirildi)
+
+Test (Agent Browser):
+- Login sayfası render oluyor (email/şifre + 3 hızlı giriş butonu)
+- Demo login → dashboard açıldı, "DK Demo Kullanıcı" + "Demo Modu" + "DEMO" rozeti, demo verisi yüklü (₺3.423.920 net değer)
+- Demo logout → login sayfasına dönüldü, demo memory store temizlendi
+- Demo tekrar login → veriler yeniden seed'lendi (aynı ₺3.423.920) — sıfırlama çalışıyor
+- Admin login → "Y Yönetici" + "ADMIN" rozeti, sidebar'da Admin Panel linki, DB verisi (₺31.268.230 net değer — tüm kullanıcıların toplamı)
+- Admin Panel açıldı: 3 kullanıcı listesi, toplam net değer ₺27.8M, kaynak dağılımı grafiği, son aktivite
+- User login → "Ahmet Yılmaz" + "Kullanıcı", kendi DB verisi (₺15.6M — admin'den farklı, sadece kendi verisi)
+- 0 console hatası, lint temiz, tüm API rotaları 200
+
+Stage Summary:
+- Supabase PostgreSQL aktif (aws-1-ap-southeast-2)
+- 3 kullanıcı tipi: admin (DB tüm veri), demo (memory, logout'ta sıfırlanır), user (DB kendi verisi)
+- Admin panel: kullanıcı yönetimi + sistem istatistikleri
+- Demo verileri DB'ye YAZILMIYOR — server-side memory'de, çıkışta otomatik temizleniyor
+- NextAuth JWT session, role + id token'da taşınıyor

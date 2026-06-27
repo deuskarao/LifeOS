@@ -1,35 +1,42 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
 import { ok, fail, readBody } from '@/lib/lifeos'
+import { getStore } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const items = await db.bankAccount.findMany({ orderBy: { createdAt: 'desc' } })
-  return ok(items)
+  try {
+    const { store, user } = await getStore()
+    const items = await store.list('bank-accounts', user.role === 'admin' ? 'admin-all' : user.id)
+    return ok(items)
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNAUTHORIZED') return fail('Yetkisiz', 401)
+    throw e
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await readBody<Record<string, unknown>>(req)
-  if (!body) return fail('Geçersiz istek')
+  try {
+    const { store, user } = await getStore()
+    const body = await readBody<Record<string, unknown>>(req)
+    if (!body) return fail('Geçersiz istek')
 
-  const { bankName, accountName, accountType, balance, iban, easyAddress, holderName, expectedAmount, color, description } = body as {
-    bankName?: string
-    accountName?: string
-    accountType?: string
-    balance?: number
-    iban?: string
-    easyAddress?: string
-    holderName?: string
-    expectedAmount?: number
-    color?: string
-    description?: string
-  }
+    const { bankName, accountName, accountType, balance, iban, easyAddress, holderName, expectedAmount, color, description } = body as {
+      bankName?: string
+      accountName?: string
+      accountType?: string
+      balance?: number
+      iban?: string
+      easyAddress?: string
+      holderName?: string
+      expectedAmount?: number
+      color?: string
+      description?: string
+    }
 
-  if (!bankName || !accountName) return fail('Banka adı ve hesap adı zorunludur')
+    if (!bankName || !accountName) return fail('Banka adı ve hesap adı zorunludur')
 
-  const item = await db.bankAccount.create({
-    data: {
+    const item = await store.create('bank-accounts', user.id, {
       bankName,
       accountName,
       accountType: accountType || 'Vadesiz',
@@ -40,7 +47,10 @@ export async function POST(req: NextRequest) {
       expectedAmount: Number(expectedAmount) || 0,
       color: color || '#3b82f6',
       description: description || null,
-    },
-  })
-  return ok(item, { status: 201 })
+    })
+    return ok(item, { status: 201 })
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNAUTHORIZED') return fail('Yetkisiz', 401)
+    throw e
+  }
 }

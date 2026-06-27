@@ -15,6 +15,7 @@ export type SectionId =
   | 'vehicles'
   | 'ai-insights'
   | 'settings'
+  | 'admin'
 
 interface NavState {
   active: SectionId

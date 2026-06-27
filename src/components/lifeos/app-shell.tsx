@@ -18,6 +18,7 @@ import { RentalView } from './views/rental-view'
 import { VehiclesView } from './views/vehicles-view'
 import { AiInsightsView } from './views/ai-insights-view'
 import { SettingsView } from './views/settings-view'
+import { AdminView } from './views/admin-view'
 
 export function AppShell() {
   const { active } = useNav()
@@ -95,6 +96,8 @@ function renderView(active: string) {
       return <AiInsightsView />
     case 'settings':
       return <SettingsView />
+    case 'admin':
+      return <AdminView />
     default:
       return <DashboardView />
   }

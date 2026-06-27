@@ -1,7 +1,8 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import { Menu, Moon, Search, Sun } from 'lucide-react'
+import { useSession, signOut } from 'next-auth/react'
+import { Menu, Moon, Search, Sun, LogOut, ShieldCheck, Sparkles, User as UserIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -35,9 +36,15 @@ const SEARCH_INDEX: { label: string; section: SectionId; keywords: string[] }[] 
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, setTheme } = useTheme()
+  const { data: session } = useSession()
   const { set } = useNav()
   const [q, setQ] = useState('')
   const [focused, setFocused] = useState(false)
+
+  const userName = session?.user?.name || 'Kullanıcı'
+  const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
+  const roleLabel = role === 'admin' ? 'Yönetici' : role === 'demo' ? 'Demo Modu' : 'Kullanıcı'
+  const initials = userName.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
 
   const results = q
     ? SEARCH_INDEX.filter((s) => {
@@ -99,22 +106,53 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-muted transition-colors">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">AY</AvatarFallback>
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
-              <span className="hidden sm:block text-sm font-medium">Ahmet Y.</span>
+              <div className="hidden sm:flex flex-col items-start leading-tight">
+                <span className="text-sm font-medium">{userName}</span>
+                <span className="text-[10px] text-muted-foreground">{roleLabel}</span>
+              </div>
+              {role === 'demo' && (
+                <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-violet-500/15 text-violet-600 dark:text-violet-400">
+                  DEMO
+                </Badge>
+              )}
+              {role === 'admin' && (
+                <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  ADMIN
+                </Badge>
+              )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
-              <p className="text-sm font-semibold">Ahmet Yılmaz</p>
-              <p className="text-xs font-normal text-muted-foreground">ahmet@lifeos.app</p>
+              <p className="text-sm font-semibold">{session?.user?.name || 'Kullanıcı'}</p>
+              <p className="text-xs font-normal text-muted-foreground">{session?.user?.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => set('settings')}>Profil & Ayarlar</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => set('ai-insights')}>AI Asistan</DropdownMenuItem>
+            {role === 'admin' && (
+              <DropdownMenuItem onClick={() => set('admin')}>
+                <ShieldCheck className="h-4 w-4 mr-2" />
+                Admin Panel
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => set('settings')}>
+              <UserIcon className="h-4 w-4 mr-2" />
+              Profil & Ayarlar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => set('ai-insights')}>
+              <Sparkles className="h-4 w-4 mr-2" />
+              AI Asistan
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-muted-foreground">
-              <Badge variant="secondary" className="mr-auto">v2.0 Pro</Badge>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => signOut({ callbackUrl: '/' })}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Çıkış Yap
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

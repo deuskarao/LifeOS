@@ -1,39 +1,40 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
 import { ok, fail, readBody } from '@/lib/lifeos'
+import { getStore } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const url = new URL(req.url)
-  const vehicleId = url.searchParams.get('vehicleId')
-  const items = await db.vehicleFuel.findMany({
-    where: vehicleId ? { vehicleId } : undefined,
-    include: { vehicle: true },
-    orderBy: { date: 'desc' },
-  })
-  return ok(items)
+  try {
+    const { store, user } = await getStore()
+    const url = new URL(req.url)
+    const vehicleId = url.searchParams.get('vehicleId')
+    let items = await store.list('fuel', user.role === 'admin' ? 'admin-all' : user.id)
+    if (vehicleId) items = items.filter((i: { vehicleId: string }) => i.vehicleId === vehicleId)
+    return ok(items)
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNAUTHORIZED') return fail('Yetkisiz', 401)
+    throw e
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await readBody<Record<string, unknown>>(req)
-  if (!body) return fail('Geçersiz istek')
-  const { vehicleId, date, liters, amount, km, fuelType, station } = body as Record<string, string | number | null>
-  if (!vehicleId) return fail('Araç zorunludur')
-  const item = await db.vehicleFuel.create({
-    data: {
+  try {
+    const { store, user } = await getStore()
+    const body = await readBody<Record<string, unknown>>(req)
+    if (!body) return fail('Geçersiz istek')
+    const { vehicleId, date, liters, amount, km, fuelType, station } = body as Record<string, string | number | null>
+    if (!vehicleId) return fail('Araç zorunludur')
+    const item = await store.create('fuel', user.id, {
       vehicleId: vehicleId as string,
       date: date ? new Date(date as string) : new Date(),
-      liters: Number(liters) || 0,
-      amount: Number(amount) || 0,
-      km: Number(km) || 0,
-      fuelType: (fuelType as string) || 'Benzin',
+      liters: Number(liters) || 0, amount: Number(amount) || 0,
+      km: Number(km) || 0, fuelType: (fuelType as string) || 'Benzin',
       station: station as string | null,
-    },
-  })
-  // Aracın km'sini güncelle
-  if (Number(km) > 0) {
-    await db.vehicle.update({ where: { id: vehicleId as string }, data: { currentKm: Number(km) } })
+    })
+    return ok(item, { status: 201 })
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNAUTHORIZED') return fail('Yetkisiz', 401)
+    throw e
   }
-  return ok(item, { status: 201 })
 }

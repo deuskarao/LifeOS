@@ -1,5 +1,6 @@
 'use client'
 
+import { useSession } from 'next-auth/react'
 import { useNav, type SectionId } from '@/lib/nav-store'
 import { cn } from '@/lib/utils'
 import {
@@ -8,6 +9,7 @@ import {
   CreditCard,
   Landmark,
   Shield,
+  ShieldCheck,
   TrendingUp,
   TrendingDown,
   PieChart,
@@ -69,6 +71,19 @@ const NAV_GROUPS: NavGroup[] = [
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { active, set } = useNav()
+  const { data: session } = useSession()
+  const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
+  const isAdmin = role === 'admin'
+
+  const groups = isAdmin
+    ? [
+        ...NAV_GROUPS,
+        {
+          label: 'Yönetim',
+          items: [{ id: 'admin' as SectionId, label: 'Admin Panel', icon: ShieldCheck, badge: 'ADMIN' }],
+        },
+      ]
+    : NAV_GROUPS
 
   return (
     <div className="flex h-full flex-col">
@@ -85,7 +100,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
-        {NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <div key={group.label} className="mb-4">
             <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               {group.label}
