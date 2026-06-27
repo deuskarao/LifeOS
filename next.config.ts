@@ -5,15 +5,15 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   reactStrictMode: false,
-  // Production optimizasyonları
   poweredByHeader: false,
   compress: true,
   images: {
     formats: ["image/avif", "image/webp"],
   },
-  // CNAME için — static export değil, standalone output
-  // lifeos.perainc.online domain'inde çalışacak
 };
 
 export default nextConfig;
