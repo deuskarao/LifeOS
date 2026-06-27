@@ -241,9 +241,7 @@ export function AiInsightsView() {
                   {role === 'demo' ? 'Demo Modu' : 'Premium'}
                 </Badge>
                 <p className="text-xs text-muted-foreground">
-                  {role === 'demo'
-                    ? 'Sınırsız AI analizi — demo kullanıcıları için'
-                    : `Günlük hak: ${quota.data.remaining}/${quota.data.limit} kaldı`}
+                  {`Günlük hak: ${quota.data.remaining}/${quota.data.limit} kaldı`}
                 </p>
               </div>
             </div>

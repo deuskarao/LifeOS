@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { ok, fail, readBody } from '@/lib/lifeos'
+import { writeLog } from '@/lib/logger'
 import bcrypt from 'bcryptjs'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest) {
       level: 'standard',
     },
   })
+
+  // Kayıt log'u
+  await writeLog('register', user, 'Yeni kullanıcı kaydı', req)
 
   return ok({
     id: user.id,

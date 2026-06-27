@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
       email: u.email,
       name: u.name,
       role: u.role,
+      level: u.level,
       createdAt: u.createdAt,
       stats: {
         netWorth: bankTotal + assetTotal + propertyTotal - loanDebt - cardDebt,

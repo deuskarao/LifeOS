@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { ok, fail } from '@/lib/lifeos'
 import { getSessionUser } from '@/lib/store'
+import { writeLog } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         data: { level: 'pending_premium' },
         select: { id: true, email: true, name: true, role: true, level: true },
       })
+      // Premium talep log'u
+      await writeLog('premium_request', updated, 'Premium üyelik talebi')
       return ok(updated)
     }
 

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { ok, fail, readBody } from '@/lib/lifeos'
 import { getSessionUser } from '@/lib/store'
+import { writeLog } from '@/lib/logger'
 import bcrypt from 'bcryptjs'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       data,
       select: { id: true, email: true, name: true, role: true, level: true, updatedAt: true },
     })
+    // Admin onay log'u
+    if (body.level === 'premium') {
+      await writeLog('premium_approved', updated, `Admin tarafından premium'a yükseltildi`, req)
+    } else if (body.level === 'standard') {
+      await writeLog('premium_rejected', updated, `Admin tarafından standart'a düşürüldü`, req)
+    }
     return ok(updated)
   } catch (e: unknown) {
     if (e instanceof Error && e.message === 'UNAUTHORIZED') return fail('Yetkisiz', 401)

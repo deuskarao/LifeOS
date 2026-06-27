@@ -78,6 +78,15 @@ export async function GET() {
         return acc
       }, {})
 
+    // Araç yakıt ve servis giderlerini kategoriye ekle (ayrı gider kaydı olmadan)
+    const thisMonthFuel = fuel.filter((f: any) => new Date(f.date) >= thisMonthStart).reduce((s: number, f: any) => s + f.amount, 0)
+    const thisMonthService = services.filter((s: any) => new Date(s.date) >= thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
+    if (thisMonthFuel > 0) expenseByCategory['Yakıt'] = (expenseByCategory['Yakıt'] || 0) + thisMonthFuel
+    if (thisMonthService > 0) expenseByCategory['Servis/Bakım'] = (expenseByCategory['Servis/Bakım'] || 0) + thisMonthService
+
+    // Bu ayın gider totaline yakıt+servis ekle
+    const thisMonthExpenseWithVehicle = thisMonthExpense + thisMonthFuel + thisMonthService
+
     const activeContracts = properties.flatMap((p: any) => p.contracts || []).filter((c: any) => c.status === 'Aktif').length
     const monthlyRentIncome = properties.flatMap((p: any) => p.contracts || []).filter((c: any) => c.status === 'Aktif').reduce((s: number, c: any) => s + c.monthlyRent, 0)
 
@@ -96,7 +105,8 @@ export async function GET() {
         netWorth, bankTotal, assetTotal, propertyValue,
         cardDebt, loanDebt, cardLimit,
         cardUsageRate: cardLimit > 0 ? (cardDebt / cardLimit) * 100 : 0,
-        monthlyIncome: thisMonthIncome, monthlyExpense: thisMonthExpense, monthlyNet,
+        monthlyIncome: thisMonthIncome, monthlyExpense: thisMonthExpenseWithVehicle,
+        monthlyNet: thisMonthIncome - thisMonthExpenseWithVehicle,
         incomeChange, expenseChange, activeContracts, monthlyRentIncome,
         vehicleCount: vehicles.length,
         fuelTotal,

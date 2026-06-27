@@ -572,3 +572,56 @@ Work Log:
 Stage Summary:
 - Files modified: src/components/lifeos/views/reports-view.tsx (only)
 - Features: thorough tr() ASCII normalizer with defensive non-ASCII strip; professional multi-page PDF with colored header bar on every page, striped tables, right-aligned numbers, section sidebar markers, footer with page numbers + timestamp; Turkish labels preserved in source, rendered as readable ASCII (ş→s, ğ→g, ı→i, etc.) so no more "bozuk" characters; ₺ symbol converted to "TL" before reaching jsPDF.
+
+---
+Task ID: 14
+Agent: main
+Task: Admin logs + demo login fix + AI quota + giderler entegrasyonu + deployment
+
+Work Log:
+- Prisma: Log modeli eklendi (id, userId, userEmail, userName, action, details, ipAddress, createdAt)
+- db:push ile logs tablosu oluşturuldu
+- src/lib/logger.ts: writeLog() fonksiyonu — DB'ye log yazar
+- Auth events log yazıyor: login, logout, register, google_login (auth.ts events.signIn/signOut)
+- Premium talep log'u: level route'unda premium_request
+- Admin onay log'u: admin/users/[id] route'unda premium_approved/premium_rejected
+- Register log'u: register route'unda
+- Admin panel: 3 tab (Genel Bakış, Kullanıcılar, Loglar) — LogsTab komponenti
+  • Log kayıtları: action type'a göre renkli ikonlar (login=emerald, logout=muted, register=sky, premium_request=amber, premium_approved=emerald, premium_rejected=rose)
+  • Kullanıcı adı, email, IP, tarih gösterimi
+  • ScrollArea ile 600px max height
+- /api/lifeos/admin/logs API route (GET, admin only, limit param)
+- Demo login hatası düzeltildi: login view'da demo@lifeos.app → demo@lifeos.com
+- Demo AI 5 hak: ai-quota ve ai-insights route'larında memory-based takip (getDemoAiQuotaStatus/incrementDemoAiQuota)
+  • AI view'da "Sınırsız" yazısı kaldırıldı, "Günlük hak: X/5 kaldı" gösteriliyor
+- Admin premium switch disabled: admin ve demo kullanıcılar için switch disabled
+- Admin API: users listesine level alanı eklendi (premium/standart sayımları için)
+- Giderler: yakıt+servis giderleri expense hesaplamalarına dahil edildi
+  • Dashboard: thisMonthExpense → thisMonthExpenseWithVehicle (fuel+service eklendi)
+  • Dashboard: expenseByCategory'ye "Yakıt" ve "Servis/Bakım" kategorileri eklendi
+  • Reports: monthlyTrend expense'e fuel+service eklendi
+  • Reports: periodExpense → periodExpenseTotal (fuel+service dahil)
+  • Reports: expenseByCategory'ye fuel+service kategorileri eklendi
+  • NOT: Yakıt/servis ayrı gider kaydı olarak görünmez, ama toplam ve kategori dağılımında yer alır
+- Pending_premium fix: jwt callback her 30 saniyede bir DB'den level çekiyor (10→30 sn)
+  • trigger=update ile manuel yenileme
+  • authorize'da user.level DB'den geliyor (pending_premium doğru gelir)
+- Logout: callbackUrl='/' → login ekranı gösterilir (deployment'da https://lifeos.perainc.online/)
+
+Test (Agent Browser):
+- Demo login (demo@lifeos.com/demo123): başarılı, dashboard açıldı ✓
+- Demo AI quota: limit:5, remaining:5 (sınırsız değil) ✓
+- Admin login (admin@lifeos.com/47Mrdn34!): Admin Panel açıldı ✓
+- Admin premium/standart sayımları: 2 premium, 3 standart ✓
+- Admin logs tab: 3 log kaydı görünüyor (login/logout) ✓
+- Logout: login ekranına yönlendirme ✓
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- Logs DB'de saklanıyor (admin panelde görünüyor)
+- Demo login düzeltildi (.com domain)
+- Demo AI 5 hak (sınırsız değil)
+- Admin switch disabled (demo gibi)
+- Giderler: yakıt+servis toplamda görünür ama ayrı kayıt değil
+- Pending_premium logout/login'de korunuyor (jwt callback DB'den çekiyor)
+- Logout → login ekranı (deployment hazır)

@@ -98,9 +98,19 @@ export async function GET(req: NextRequest) {
         const d = new Date(x.date)
         return d >= cursor && d < monthEnd
       }).reduce((s: number, x: any) => s + x.amount, 0)
+      // Araç yakıt ve servis giderlerini aylık trende ekle
+      const monthFuel = fuel.filter((f: any) => {
+        const d = new Date(f.date)
+        return d >= cursor && d < monthEnd
+      }).reduce((s: number, f: any) => s + f.amount, 0)
+      const monthService = services.filter((s: any) => {
+        const d = new Date(s.date)
+        return d >= cursor && d < monthEnd
+      }).reduce((s: number, x: any) => s + x.amount, 0)
+      const expTotal = exp + monthFuel + monthService
       monthlyTrend.push({
         month: `${monthLabels[cursor.getMonth()]} ${cursor.getFullYear().toString().slice(-2)}`,
-        income: inc, expense: exp, net: inc - exp,
+        income: inc, expense: expTotal, net: inc - expTotal,
       })
       cursor.setMonth(cursor.getMonth() + 1)
     }
@@ -110,11 +120,19 @@ export async function GET(req: NextRequest) {
     const periodExpense = periodExpenses.reduce((s: number, x: any) => s + x.amount, 0)
     const prevExpense = prevExpenses.reduce((s: number, x: any) => s + x.amount, 0)
 
+    // Yakıt+servis giderlerini döneme ekle
+    const periodFuelTotal = periodFuel.reduce((s: number, f: any) => s + f.amount, 0)
+    const periodServiceTotal = periodServices.reduce((s: number, x: any) => s + x.amount, 0)
+    const periodExpenseTotal = periodExpense + periodFuelTotal + periodServiceTotal
+
     const incomeByCategory = periodIncomes
       .reduce<Record<string, number>>((acc, x: any) => { acc[x.category] = (acc[x.category] || 0) + x.amount; return acc }, {})
 
     const expenseByCategory = periodExpenses
       .reduce<Record<string, number>>((acc, x: any) => { acc[x.category] = (acc[x.category] || 0) + x.amount; return acc }, {})
+    // Yakıt ve servis kategorilerini ekle
+    if (periodFuelTotal > 0) expenseByCategory['Yakıt'] = (expenseByCategory['Yakıt'] || 0) + periodFuelTotal
+    if (periodServiceTotal > 0) expenseByCategory['Servis/Bakım'] = (expenseByCategory['Servis/Bakım'] || 0) + periodServiceTotal
 
     const bankTotal = banks.reduce((s: number, b: any) => s + b.balance, 0)
     const assetTotal = assets.reduce((s: number, a: any) => s + a.totalValue, 0)
@@ -143,9 +161,8 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    // Değişim yüzdeleri
-    const incomeChange = prevIncome > 0 ? ((periodIncome - prevIncome) / prevIncome) * 100 : 0
-    const expenseChange = prevExpense > 0 ? ((periodExpense - prevExpense) / prevExpense) * 100 : 0
+    // Değişim yüzdeleri (yakıt+servis dahil)
+    const expenseChange = prevExpense > 0 ? ((periodExpenseTotal - prevExpense) / prevExpense) * 100 : 0
 
     return ok({
       period: {
@@ -155,9 +172,10 @@ export async function GET(req: NextRequest) {
         prevTo: prevEndDate.toISOString(),
       },
       summary: {
-        periodIncome, prevIncome, periodExpense, prevExpense,
-        periodSavings: periodIncome - periodExpense,
-        savingsRate: periodIncome > 0 ? ((periodIncome - periodExpense) / periodIncome) * 100 : 0,
+        periodIncome, prevIncome,
+        periodExpense: periodExpenseTotal, prevExpense,
+        periodSavings: periodIncome - periodExpenseTotal,
+        savingsRate: periodIncome > 0 ? ((periodIncome - periodExpenseTotal) / periodIncome) * 100 : 0,
         incomeChange, expenseChange,
         netWorth: bankTotal + assetTotal + propertyTotal - loanDebt - cardDebt,
         bankTotal, assetTotal, propertyTotal, loanDebt, cardDebt,

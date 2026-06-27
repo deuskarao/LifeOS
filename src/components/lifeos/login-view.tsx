@@ -88,7 +88,7 @@ export function LoginView() {
     setLoading(true)
     setError('')
     const res = await signIn('credentials', {
-      email: 'demo@lifeos.app',
+      email: 'demo@lifeos.com',
       password: 'demo123',
       redirect: false,
     })

@@ -53,7 +53,8 @@ import {
   YAxis,
   CartesianGrid,
 } from 'recharts'
-import { formatCurrency, formatCompact, formatDate } from '@/lib/lifeos'
+import { formatCurrency, formatCompact, formatDate, formatDateTime } from '@/lib/lifeos'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   ShieldCheck,
   Users,
@@ -72,6 +73,12 @@ import {
   Crown,
   Sparkles,
   Clock,
+  LogIn,
+  LogOut,
+  UserPlus,
+  CheckCircle,
+  XCircle,
+  Chrome,
 } from 'lucide-react'
 
 // ===== Types =====
@@ -165,7 +172,7 @@ const LEVEL_BADGE_CLASS: Record<string, string> = {
   standard: 'bg-muted text-muted-foreground border-border',
 }
 
-const LEVEL_LABEL: Record<string, string> = { premium: 'PREMIUM', standard: 'STANDART' }
+const LEVEL_LABEL: Record<string, string> = { premium: 'PREMIUM', standard: 'STANDART', pending_premium: 'ONAY BEKLİYOR' }
 
 /** AI günlük soru limitleri (backend ai-insights/route.ts ile uyumlu). */
 const AI_LIMIT: Record<string, number> = { premium: 5, standard: 1 }
@@ -234,12 +241,19 @@ export function AdminView() {
             <Users className="h-3.5 w-3.5" />
             Kullanıcılar
           </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" />
+            Loglar
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
           <OverviewTab />
         </TabsContent>
         <TabsContent value="users" className="mt-4">
           <UsersTab currentUserId={currentUserId} />
+        </TabsContent>
+        <TabsContent value="logs" className="mt-4">
+          <LogsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -687,7 +701,7 @@ function UsersTab({ currentUserId }: { currentUserId?: string }) {
                           </Badge>
                           <Switch
                             checked={u.level === 'premium'}
-                            disabled={isDemo || levelMut.isPending}
+                            disabled={u.role === 'demo' || u.role === 'admin' || levelMut.isPending}
                             onCheckedChange={(checked) =>
                               levelMut.mutate({
                                 id: u.id,
@@ -967,5 +981,96 @@ function ActivityCard({
       <p className="text-2xl font-bold">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
+  )
+}
+
+/* -------------------------- Logs Tab -------------------------- */
+
+interface LogEntry {
+  id: string
+  userId: string | null
+  userEmail: string | null
+  userName: string | null
+  action: string
+  details: string | null
+  ipAddress: string | null
+  createdAt: string
+}
+
+const LOG_META: Record<string, { icon: typeof LogIn; color: string; bg: string; label: string }> = {
+  login: { icon: LogIn, color: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Giriş' },
+  logout: { icon: LogOut, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Çıkış' },
+  register: { icon: UserPlus, color: 'text-sky-500', bg: 'bg-sky-500/10', label: 'Kayıt' },
+  premium_request: { icon: Crown, color: 'text-amber-500', bg: 'bg-amber-500/10', label: 'Premium Talebi' },
+  premium_approved: { icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Premium Onay' },
+  premium_rejected: { icon: XCircle, color: 'text-rose-500', bg: 'bg-rose-500/10', label: 'Premium Red' },
+  ai_analysis: { icon: Sparkles, color: 'text-violet-500', bg: 'bg-violet-500/10', label: 'AI Analiz' },
+  google_login: { icon: Chrome, color: 'text-sky-500', bg: 'bg-sky-500/10', label: 'Google Girişi' },
+}
+
+function LogsTab() {
+  const { data, isLoading } = useQuery<LogEntry[]>({
+    queryKey: ['admin-logs'],
+    queryFn: () => api.get<LogEntry[]>('/api/lifeos/admin/logs?limit=200'),
+  })
+
+  if (isLoading) {
+    return <Skeleton className="h-96" />
+  }
+
+  const logs = data || []
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            Sistem Logları ({logs.length})
+          </h3>
+        </div>
+        <ScrollArea className="max-h-[600px]">
+          {logs.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Henüz log kaydı yok.
+            </div>
+          ) : (
+            <div className="divide-y">
+              {logs.map((log, i) => {
+                const meta = LOG_META[log.action] || LOG_META.login
+                const Icon = meta.icon
+                return (
+                  <motion.div
+                    key={log.id}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: Math.min(i * 0.02, 0.3) }}
+                    className="flex items-start gap-3 px-5 py-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${meta.bg} ${meta.color}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold ${meta.color}`}>{meta.label}</span>
+                        <span className="text-sm font-medium">{log.userName || log.userEmail || 'Bilinmiyor'}</span>
+                      </div>
+                      {log.details && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">{log.details}</p>
+                      )}
+                      <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground/70">
+                        <span>{formatDateTime(log.createdAt)}</span>
+                        {log.userEmail && <span>· {log.userEmail}</span>}
+                        {log.ipAddress && <span>· {log.ipAddress}</span>}
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
+        </ScrollArea>
+      </CardContent>
+    </Card>
   )
 }
