@@ -1,0 +1,101 @@
+'use client'
+
+import { useState } from 'react'
+import { Sidebar } from './sidebar'
+import { Topbar } from './topbar'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { useNav } from '@/lib/nav-store'
+import { AnimatePresence, motion } from 'framer-motion'
+import { DashboardView } from './views/dashboard-view'
+import { BankAccountsView } from './views/bank-accounts-view'
+import { CreditCardsView } from './views/credit-cards-view'
+import { LoansView } from './views/loans-view'
+import { AssetsView } from './views/assets-view'
+import { IncomeView } from './views/income-view'
+import { ExpensesView } from './views/expenses-view'
+import { ReportsView } from './views/reports-view'
+import { RentalView } from './views/rental-view'
+import { VehiclesView } from './views/vehicles-view'
+import { AiInsightsView } from './views/ai-insights-view'
+import { SettingsView } from './views/settings-view'
+
+export function AppShell() {
+  const { active } = useNav()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-64 shrink-0 border-r bg-sidebar/50 backdrop-blur-sm">
+        <Sidebar />
+      </aside>
+
+      {/* Mobile sidebar */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="w-72 p-0">
+          <Sidebar onNavigate={() => setMobileOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
+      {/* Main */}
+      <div className="flex flex-1 flex-col min-w-0">
+        <Topbar onMenuClick={() => setMobileOpen(true)} />
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto w-full max-w-7xl">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                {renderView(active)}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </main>
+        <footer className="mt-auto border-t bg-background/80 backdrop-blur-sm">
+          <div className="mx-auto w-full max-w-7xl px-4 md:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
+            <p>© {new Date().getFullYear()} LifeOS — Yaşam Yönetim Platformu</p>
+            <p className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Tüm sistemler çalışıyor
+            </p>
+          </div>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+function renderView(active: string) {
+  switch (active) {
+    case 'dashboard':
+      return <DashboardView />
+    case 'bank-accounts':
+      return <BankAccountsView />
+    case 'credit-cards':
+      return <CreditCardsView />
+    case 'loans':
+      return <LoansView />
+    case 'assets':
+      return <AssetsView />
+    case 'income':
+      return <IncomeView />
+    case 'expenses':
+      return <ExpensesView />
+    case 'reports':
+      return <ReportsView />
+    case 'rental':
+      return <RentalView />
+    case 'vehicles':
+      return <VehiclesView />
+    case 'ai-insights':
+      return <AiInsightsView />
+    case 'settings':
+      return <SettingsView />
+    default:
+      return <DashboardView />
+  }
+}
