@@ -415,3 +415,42 @@ Stage Summary:
 - Footer "Tüm Hakları Saklıdır"
 - Reports "Tümü" 2025'ten başlar
 - Dashboard araç kartında yakıt+servis harcamaları
+
+---
+Task ID: 12
+Agent: main
+Task: Home kullanıcısı JSON veri migrasyonu + UI düzeltmeleri
+
+Work Log:
+- Login layout: Email/şifre/Giriş Yap ÜSTTE, Google + Demo butonları ALTTA
+- Footer: "© 2026 LifeOS — Tüm Hakları Saklıdır"
+- Topbar: kullanıcı adı altında "Kullanıcı - Standart/Premium" etiketi
+- Sidebar boşluk düzeltildi (footer mt-auto ile nav'ın hemen altında)
+- Admin sadece admin panel görür (normal arayüz gizli)
+- AI Asistan tüm kullanıcılarda görünür (standart 1 hak, premium 5 hak)
+- "Sınırsız" yazısı kaldırıldı, premium için "Günlük hak: X/5 kaldı" gösteriliyor
+- Premium yükseltme → pending_premium (admin onayı gerekir)
+- Settings üyelik tab'ında "Premium Onay Bekliyor" amber banner
+- Raporlar "Tümü" filtresi 2025'ten başlıyor
+- Yaklaşan ödemeler 5 kayıt gösteriyor
+- Dashboard araç filosu: 4 metrik (sayı, yakıt, servis, toplam maliyet)
+- PDF export: Türkçe karakterler ASCII'ye çevrildi (tr() fonksiyonu)
+- Supabase Google OAuth: supabase-client.ts + google-callback + google-login route
+- User modeline pending_premium level eklendi
+- DB: admin şifre 47Mrdn34!, ahmet silindi, home/yagmur/mustafa eklendi (standart)
+- Home kullanıcısı JSON migrasyonu: prisma/migrate-home.ts
+  • 11 banka hesabı, 9 kart, 1 kredi, 6 varlık, 41 gelir, 149 gider
+  • 2 mülk, 1 kontrat, 1 araç, 29 yakıt, 3 servis
+  • Net değer: ₺13.661.121 (Üst-Orta Sınıf)
+
+Test (Agent Browser):
+- Admin login (47Mrdn34!): sadece admin panel, "Yönetici - Premium" etiketi ✓
+- Home login (home123): dashboard ₺13.6M net değer, "Kullanıcı - Standart" ✓
+- AI view: standart kullanıcı "Günlük hak: 1/1 kaldı" + Analiz Et butonu ✓
+- Premium yükseltme: "Admin onayı bekleniyor" toast ✓
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- Home kullanıcısının JSON verileri DB'ye tam migrasyon edildi
+- Tüm UI düzeltmeleri tamamlandı
+- Admin şifre değiştirildi, ahmet silindi, 3 yeni kullanıcı eklendi
