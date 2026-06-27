@@ -745,3 +745,45 @@ Stage Summary:
 - PDF'de yakıt duplicate fix
 - Locked wealth class card blur kaldırıldı, temiz tasarım
 - Raporlar KPI kartları eşit boyut
+
+---
+Task ID: 18
+Agent: main
+Task: PDF fix + cascade selects + income account + card payment + security + GitHub push
+
+Work Log:
+- PDF beyaz yazı fix: tüm tablolarda textColor [30,30,30] (önceki 50 veya beyaz)
+- PDF araç maliyetleri: araç bazında yakıt + servis + toplam göster (vehicleCosts API)
+  • "CHERY TIGGO 7 - Yakit", "CHERY TIGGO 7 - Servis", "CHERY TIGGO 7 - Toplam"
+  • Genel toplamlar: Yakit Toplam, Servis Toplam, Arac Toplam Maliyet
+  • Duplicate fix: tek araçta da araç adı göster
+- Gider ödeme yöntemi cascade:
+  • Ödeme Tipi select: Nakit / Banka Hesabı / Kredi Kartı
+  • Banka seçilince → hesap listesi (bakiyeli dropdown)
+  • Kart seçilince → kart listesi (borçlu dropdown)
+- Gelir hesap seçimi:
+  • "Yatan Hesap (opsiyonel)" dropdown — banka hesapları bakiyeli
+  • Seçilen hesabın bakiyesi gelir tutarı kadar artar
+  • Income POST API: bankAccountId ile bank.balance += amount
+- Kredi kartı ödeme:
+  • "Ödenecek Hesap" dropdown — banka hesapları bakiyeli
+  • Seçilen hesabın bakiyesinden düşülür
+  • Pay API: bankAccountId parametresi
+- Güvenlik:
+  • .env dosyası git'ten kaldırıldı (git rm --cached)
+  • .env.example placeholder değerlerle güncellendi
+  • supabase-client.ts process.env kullanıyor (hardcoded yok)
+  • Remote URL'den token kaldırıldı
+- GitHub push: deuskarao/LifeOS — main branch (force push)
+
+Test:
+- Lint temiz ✓
+- .env git'te takip edilmiyor ✓
+- supabase-client.ts hardcoded key yok ✓
+- GitHub push başarılı ✓
+
+Stage Summary:
+- PDF: beyaz yazı fix + araç bazında maliyet etiketleri
+- Gider/Gelir/Kart ödeme: cascade select + bakiyeli dropdown
+- Güvenlik: hardcoded keyler kaldırıldı, .env git'ten temizlendi
+- GitHub: deuskarao/LifeOS push tamam
