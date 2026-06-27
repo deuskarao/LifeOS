@@ -84,6 +84,7 @@ interface ReportsData {
     incomeByCategory: { name: string; value: number }[]
     expenseByCategory: { name: string; value: number }[]
     fuelByVehicle: { name: string; value: number }[]
+    vehicleCosts?: { name: string; fuel: number; service: number; total: number }[]
     netWorthBreakdown: { name: string; value: number }[]
   }
   propertyStats: {
@@ -284,7 +285,7 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
       ],
       theme: 'striped',
       headStyles: { fillColor: BRAND, textColor: 255, fontStyle: 'bold', fontSize: 10 },
-      bodyStyles: { textColor: 50, fontSize: 9 },
+      bodyStyles: { textColor: [30, 30, 30], fontSize: 9 },
       alternateRowStyles: { fillColor: STRIPE },
       columnStyles: { 1: { halign: 'right' } },
       margin: { top: 50, bottom: 30, left: margin, right: margin },
@@ -303,7 +304,7 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
       body: incomeBody,
       theme: 'striped',
       headStyles: { fillColor: COLOR_INCOME, textColor: 255, fontStyle: 'bold', fontSize: 10 },
-      bodyStyles: { textColor: 50, fontSize: 9 },
+      bodyStyles: { textColor: [30, 30, 30], fontSize: 9 },
       alternateRowStyles: { fillColor: STRIPE },
       columnStyles: { 1: { halign: 'right' } },
       margin: { top: 50, bottom: 30, left: margin, right: margin },
@@ -322,7 +323,7 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
       body: expenseBody,
       theme: 'striped',
       headStyles: { fillColor: COLOR_EXPENSE, textColor: 255, fontStyle: 'bold', fontSize: 10 },
-      bodyStyles: { textColor: 50, fontSize: 9 },
+      bodyStyles: { textColor: [30, 30, 30], fontSize: 9 },
       alternateRowStyles: { fillColor: STRIPE },
       columnStyles: { 1: { halign: 'right' } },
       margin: { top: 50, bottom: 30, left: margin, right: margin },
@@ -343,7 +344,7 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
         ]),
         theme: 'striped',
         headStyles: { fillColor: COLOR_TREND, textColor: 255, fontStyle: 'bold', fontSize: 10 },
-        bodyStyles: { textColor: 50, fontSize: 9 },
+        bodyStyles: { textColor: [30, 30, 30], fontSize: 9 },
         alternateRowStyles: { fillColor: STRIPE },
         columnStyles: {
           1: { halign: 'right' },
@@ -371,7 +372,7 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
         ]),
         theme: 'striped',
         headStyles: { fillColor: COLOR_PROPERTY, textColor: 255, fontStyle: 'bold', fontSize: 10 },
-        bodyStyles: { textColor: 50, fontSize: 9 },
+        bodyStyles: { textColor: [30, 30, 30], fontSize: 9 },
         alternateRowStyles: { fillColor: STRIPE },
         columnStyles: {
           0: { cellWidth: 40 },
@@ -386,16 +387,25 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
       nextY = (doc as any).lastAutoTable.finalY + 14
     }
 
-    // === 6. ARAÇ MALİYETLERİ (tek tablo — yakıt + servis + toplam) ===
+    // === 6. ARAÇ MALİYETLERİ (araç bazında yakıt + servis + toplam) ===
     nextY = addSectionTitle('6. Arac Maliyetleri', nextY)
     const vehicleRows: any[] = []
-    // Araç bazında yakıt (eğer 1'den fazla araç varsa göster)
-    if (data.charts.fuelByVehicle.length > 1) {
+
+    // Araç bazında detaylı maliyet (yakıt + servis + toplam)
+    if (data.charts.vehicleCosts && data.charts.vehicleCosts.length > 0) {
+      data.charts.vehicleCosts.forEach((vc) => {
+        vehicleRows.push([tr(vc.name + ' - Yakit'), tr(formatCurrency(vc.fuel))])
+        vehicleRows.push([tr(vc.name + ' - Servis'), tr(formatCurrency(vc.service))])
+        vehicleRows.push([tr(vc.name + ' - Toplam'), tr(formatCurrency(vc.total))])
+      })
+    } else {
+      // Fallback: eski fuelByVehicle
       data.charts.fuelByVehicle.forEach((c) => {
         vehicleRows.push([tr(c.name + ' - Yakit'), tr(formatCurrency(c.value))])
       })
     }
-    // Genel toplamlar — Yakıt Toplam sadece çok araç varsa anlamlı, tek araçta zaten üstte göründü
+
+    // Genel toplamlar
     vehicleRows.push([tr('Yakit Toplam'), tr(formatCurrency(data.summary.fuelTotal))])
     vehicleRows.push([tr('Servis Toplam'), tr(formatCurrency(data.summary.serviceTotal))])
     vehicleRows.push([tr('Arac Toplam Maliyet'), tr(formatCurrency(data.summary.vehicleTotalCost))])
@@ -404,19 +414,21 @@ function exportPdf(data: ReportsData, label: string, userName?: string) {
       startY: nextY,
       head: [[tr('Arac Maliyet Kalemi'), tr('Tutar')]],
       body: vehicleRows,
-      theme: 'striped',
-      headStyles: { fillColor: COLOR_VEHICLE, textColor: 255, fontStyle: 'bold', fontSize: 10 },
-      bodyStyles: { textColor: 50, fontSize: 9 },
+      theme: 'grid',
+      headStyles: { fillColor: COLOR_VEHICLE, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 },
+      bodyStyles: { textColor: [30, 30, 30], fontSize: 9 },
       alternateRowStyles: { fillColor: STRIPE },
       columnStyles: {
-        0: { cellWidth: 120 },
-        1: { halign: 'right', fontStyle: 'bold' },
+        0: { cellWidth: 120, textColor: [30, 30, 30] },
+        1: { halign: 'right', fontStyle: 'bold', textColor: [30, 30, 30] },
       },
-      // Son 3 satırı (toplamlar) vurgula
       didParseCell: (hookData: any) => {
-        if (hookData.row.index >= vehicleRows.length - 3) {
+        // Araç toplam satırları ve genel toplamları vurgula
+        const label = hookData.cell?.raw as string || ''
+        if (label.includes('Toplam') || label.includes('Maliyet')) {
           hookData.cell.styles.fontStyle = 'bold'
-          hookData.cell.styles.fillColor = [245, 245, 245]
+          hookData.cell.styles.fillColor = [240, 240, 240]
+          hookData.cell.styles.textColor = [20, 20, 20]
         }
       },
       margin: { top: 50, bottom: 30, left: margin, right: margin },

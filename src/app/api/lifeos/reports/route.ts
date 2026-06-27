@@ -135,6 +135,19 @@ export async function GET(req: NextRequest) {
       acc[key] = (acc[key] || 0) + f.amount
       return acc
     }, {})
+    const serviceByVehicle = periodServices.reduce<Record<string, number>>((acc, s: any) => {
+      const key = vehicles.find((v: any) => v.id === s.vehicleId)?.name || 'Bilinmiyor'
+      acc[key] = (acc[key] || 0) + s.amount
+      return acc
+    }, {})
+    // Araç bazında toplam maliyet (yakıt + servis)
+    const allVehicleNames = Array.from(new Set([...Object.keys(fuelByVehicle), ...Object.keys(serviceByVehicle)]))
+    const vehicleCosts = allVehicleNames.map(name => ({
+      name,
+      fuel: fuelByVehicle[name] || 0,
+      service: serviceByVehicle[name] || 0,
+      total: (fuelByVehicle[name] || 0) + (serviceByVehicle[name] || 0),
+    }))
 
     const propertyStats = properties.map((p: any) => {
       const activeContract = (p.contracts || []).find((c: any) => c.status === 'Aktif')
@@ -175,6 +188,7 @@ export async function GET(req: NextRequest) {
         incomeByCategory: Object.entries(incomeByCategory).map(([name, value]) => ({ name, value })),
         expenseByCategory: Object.entries(expenseByCategory).map(([name, value]) => ({ name, value })),
         fuelByVehicle: Object.entries(fuelByVehicle).map(([name, value]) => ({ name, value })),
+        vehicleCosts,
         netWorthBreakdown: [
           { name: 'Banka', value: bankTotal },
           { name: 'Beklenen', value: expectedAmount },

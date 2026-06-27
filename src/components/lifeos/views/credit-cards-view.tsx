@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useCrud, api } from '@/lib/api-client'
@@ -75,6 +76,13 @@ export function CreditCardsView() {
   const [payCard, setPayCard] = useState<CreditCard | null>(null)
   const [payAmount, setPayAmount] = useState(0)
   const [paySaving, setPaySaving] = useState(false)
+  const [payBankId, setPayBankId] = useState<string | null>(null)
+
+  // Banka hesaplarını çek (bakiyeli)
+  const { data: banks } = useQuery<{ id: string; accountName: string; bankName: string; balance: number }[]>({
+    queryKey: ['bank-accounts'],
+    queryFn: () => api.get('/api/lifeos/bank-accounts'),
+  })
 
   function openCreate() {
     setEditing(null)
@@ -438,7 +446,7 @@ export function CreditCardsView() {
       {/* Ödeme Yap Dialog */}
       <FormDialog
         open={payOpen}
-        onOpenChange={(o) => { setPayOpen(o); if (!o) { setPayCard(null); setPayAmount(0) } }}
+        onOpenChange={(o) => { setPayOpen(o); if (!o) { setPayCard(null); setPayAmount(0); setPayBankId(null) } }}
         title="Kart Borcu Öde"
         description={payCard ? `${payCard.cardName} — Borç: ${formatCurrency(payCard.balance)}` : ''}
         icon={Wallet}
@@ -455,8 +463,27 @@ export function CreditCardsView() {
               <p className="text-xs text-amber-500">Borçtan fazla tutar girdiniz. Tam borç ödenecek.</p>
             )}
           </div>
+          <div className="space-y-2">
+            <Label>Ödenecek Hesap (banka bakiyesinden düşülür)</Label>
+            <Select
+              value={payBankId || 'none'}
+              onValueChange={(v) => setPayBankId(v === 'none' ? null : v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Hesap seçilmedi" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Hesap seçilmedi (manuel)</SelectItem>
+                {banks?.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.accountName} — {b.bankName} ({formatCurrency(b.balance)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setPayOpen(false); setPayCard(null); setPayAmount(0) }}>
+            <Button variant="outline" onClick={() => { setPayOpen(false); setPayCard(null); setPayAmount(0); setPayBankId(null) }}>
               İptal
             </Button>
             <Button
@@ -466,11 +493,15 @@ export function CreditCardsView() {
                 if (!payCard) return
                 setPaySaving(true)
                 try {
-                  await api.post(`/api/lifeos/credit-cards/${payCard.id}/pay`, { amount: payAmount })
+                  await api.post(`/api/lifeos/credit-cards/${payCard.id}/pay`, {
+                    amount: payAmount,
+                    bankAccountId: payBankId,
+                  })
                   toast.success('Ödeme başarıyla yapıldı')
                   setPayOpen(false)
                   setPayCard(null)
                   setPayAmount(0)
+                  setPayBankId(null)
                 } catch (e: any) {
                   toast.error(e?.message || 'Ödeme başarısız')
                 } finally {

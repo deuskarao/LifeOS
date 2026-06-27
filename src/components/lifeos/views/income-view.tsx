@@ -434,6 +434,13 @@ function IncomeFormDialog({ open, onOpenChange, initial, submitting, onSubmit }:
   const [date, setDate] = useState('')
   const [recurring, setRecurring] = useState(false)
   const [notes, setNotes] = useState('')
+  const [bankAccountId, setBankAccountId] = useState<string | null>(null)
+
+  // Banka hesaplarını çek (bakiyeli)
+  const { data: banks } = useQuery<{ id: string; accountName: string; bankName: string; balance: number }[]>({
+    queryKey: ['bank-accounts'],
+    queryFn: () => api.get('/api/lifeos/bank-accounts'),
+  })
 
   // Sync form when opening
   const lastInitial = React.useRef<Income | null>(null)
@@ -471,7 +478,8 @@ function IncomeFormDialog({ open, onOpenChange, initial, submitting, onSubmit }:
       date: date ? new Date(date).toISOString() : new Date().toISOString(),
       recurring,
       notes: notes.trim() || null,
-    })
+      bankAccountId,
+    } as any)
   }
 
   return (
@@ -540,6 +548,27 @@ function IncomeFormDialog({ open, onOpenChange, initial, submitting, onSubmit }:
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Yatan Hesap (opsiyonel)</Label>
+          <Select
+            value={bankAccountId || 'none'}
+            onValueChange={(v) => setBankAccountId(v === 'none' ? null : v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Hesap seçilmedi" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Hesap seçilmedi</SelectItem>
+              {banks?.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.accountName} — {b.bankName} ({formatCurrency(b.balance)})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Seçilen hesabın bakiyesi artacak</p>
         </div>
 
         <div className="flex items-center justify-between rounded-lg border p-3">

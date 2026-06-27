@@ -492,12 +492,12 @@ function ExpenseFormDialog({
   const [paymentSourceType, setPaymentSourceType] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
 
-  // Kart ve banka hesaplarını çek
-  const { data: cards } = useQuery<{ id: string; cardName: string; bankName: string }[]>({
+  // Kart ve banka hesaplarını çek (bakiyeli)
+  const { data: cards } = useQuery<{ id: string; cardName: string; bankName: string; balance: number; limit: number }[]>({
     queryKey: ['credit-cards'],
     queryFn: () => api.get('/api/lifeos/credit-cards'),
   })
-  const { data: banks } = useQuery<{ id: string; accountName: string; bankName: string }[]>({
+  const { data: banks } = useQuery<{ id: string; accountName: string; bankName: string; balance: number }[]>({
     queryKey: ['bank-accounts'],
     queryFn: () => api.get('/api/lifeos/bank-accounts'),
   })
@@ -597,53 +597,69 @@ function ExpenseFormDialog({
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label>Ödeme Yöntemi</Label>
-          <Select
-            value={paymentSourceId ? `${paymentSourceType}:${paymentSourceId}` : paymentMethod}
-            onValueChange={(v) => {
-              if (v === 'Nakit') {
-                setPaymentMethod('Nakit')
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Ödeme Tipi</Label>
+            <Select
+              value={paymentMethod}
+              onValueChange={(v) => {
+                setPaymentMethod(v)
                 setPaymentSourceId(null)
                 setPaymentSourceType(null)
-              } else if (v.startsWith('card:')) {
-                setPaymentMethod('Kart')
-                setPaymentSourceId(v.slice(5))
-                setPaymentSourceType('card')
-              } else if (v.startsWith('bank:')) {
-                setPaymentMethod('Banka')
-                setPaymentSourceId(v.slice(5))
-                setPaymentSourceType('bank')
-              }
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Nakit">Nakit</SelectItem>
-              {cards && cards.length > 0 && (
-                <>
-                  <p className="px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">Kredi Kartları</p>
-                  {cards.map((c) => (
-                    <SelectItem key={c.id} value={`card:${c.id}`}>
-                      {c.cardName} — {c.bankName}
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Nakit">Nakit</SelectItem>
+                <SelectItem value="Banka">Banka Hesabı</SelectItem>
+                <SelectItem value="Kart">Kredi Kartı</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {paymentMethod === 'Banka' && (
+            <div className="space-y-1.5">
+              <Label>Hesap Seç</Label>
+              <Select
+                value={paymentSourceId || ''}
+                onValueChange={(v) => { setPaymentSourceId(v); setPaymentSourceType('bank') }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Hesap seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {banks?.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.accountName} — {b.bankName} ({formatCurrency(b.balance)})
                     </SelectItem>
                   ))}
-                </>
-              )}
-              {banks && banks.length > 0 && (
-                <>
-                  <p className="px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">Banka Hesapları</p>
-                  {banks.map((b) => (
-                    <SelectItem key={b.id} value={`bank:${b.id}`}>
-                      {b.accountName} — {b.bankName}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {paymentMethod === 'Kart' && (
+            <div className="space-y-1.5">
+              <Label>Kart Seç</Label>
+              <Select
+                value={paymentSourceId || ''}
+                onValueChange={(v) => { setPaymentSourceId(v); setPaymentSourceType('card') }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Kart seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cards?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.cardName} — {c.bankName} (Borç: {formatCurrency(c.balance)})
                     </SelectItem>
                   ))}
-                </>
-              )}
-            </SelectContent>
-          </Select>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="space-y-1.5">
