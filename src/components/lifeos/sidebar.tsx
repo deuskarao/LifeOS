@@ -69,38 +69,40 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
+// Admin için özel sidebar — sadece admin panel
+const ADMIN_GROUPS: NavGroup[] = [
+  {
+    label: 'Yönetim',
+    items: [{ id: 'admin', label: 'Admin Panel', icon: ShieldCheck, badge: 'ADMIN' }],
+  },
+]
+
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { active, set } = useNav()
   const { data: session } = useSession()
   const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
   const level = (session?.user as any)?.level as 'standard' | 'premium' | undefined
   const isAdmin = role === 'admin'
+  // AI Asistan + wealth class sadece premium/demo/admin
   const isPremiumOrDemo = role === 'admin' || role === 'demo' || level === 'premium'
 
-  // AI Asistan sadece premium/demo/admin için görünür
-  const filteredGroups = NAV_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.filter((item) => {
-      if (item.id === 'ai-insights' && !isPremiumOrDemo) return false
-      return true
-    }),
-  })).filter((g) => g.items.length > 0)
-
+  // Admin sadece admin panel görür — normal arayüz yok
   const groups = isAdmin
-    ? [
-        ...filteredGroups,
-        {
-          label: 'Yönetim',
-          items: [{ id: 'admin' as SectionId, label: 'Admin Panel', icon: ShieldCheck, badge: 'ADMIN' }],
-        },
-      ]
-    : filteredGroups
+    ? ADMIN_GROUPS
+    : NAV_GROUPS.map((g) => ({
+        ...g,
+        items: g.items.filter((item) => {
+          // Standart kullanıcı AI Asistan'ı göremez
+          if (item.id === 'ai-insights' && !isPremiumOrDemo) return false
+          return true
+        }),
+      })).filter((g) => g.items.length > 0)
 
   return (
     <div className="flex h-full flex-col">
-      {/* Brand — tıklayınca dashboard'a gider */}
+      {/* Brand — tıklayınca dashboard'a gider (admin için admin panel) */}
       <button
-        onClick={() => { set('dashboard'); onNavigate?.() }}
+        onClick={() => { set(isAdmin ? 'admin' : 'dashboard'); onNavigate?.() }}
         className="flex h-16 items-center gap-2.5 border-b px-5 hover:bg-muted/50 transition-colors text-left"
       >
         <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-emerald text-white shadow-lg shadow-emerald-500/20">
@@ -108,7 +110,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div className="leading-tight">
           <p className="text-sm font-bold tracking-tight">LifeOS</p>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Yaşam Yönetimi</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            {isAdmin ? 'Yönetim' : 'Yaşam Yönetimi'}
+          </p>
         </div>
       </button>
 
@@ -159,8 +163,20 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      {/* Premium upgrade banner for standard users */}
-      {!isPremiumOrDemo && (
+      {/* Footer — premium banner veya durum */}
+      {isAdmin ? (
+        <div className="border-t p-3">
+          <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+              <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Yönetici Modu</p>
+            </div>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              Sistem yönetimi aktif
+            </p>
+          </div>
+        </div>
+      ) : !isPremiumOrDemo ? (
         <div className="border-t p-3">
           <div className="rounded-lg bg-gradient-to-br from-violet-500/15 to-violet-500/5 border border-violet-500/20 p-3">
             <div className="flex items-center gap-2 mb-1">
@@ -178,8 +194,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             </button>
           </div>
         </div>
-      )}
-      {isPremiumOrDemo && (
+      ) : (
         <div className="border-t p-3">
           <div className="rounded-lg bg-muted/50 p-3">
             <p className="text-[11px] font-semibold text-muted-foreground">

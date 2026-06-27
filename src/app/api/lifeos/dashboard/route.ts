@@ -18,15 +18,17 @@ export async function GET() {
       store.list('vehicles', uid),
     ])
 
-    // Son 6 ay gelir/gider
+    // Son 6 ay gelir/gider + yakıt/servis
     const now = new Date()
     const sixMonthsAgo = new Date()
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
     sixMonthsAgo.setDate(1)
 
-    const [incomes, expenses] = await Promise.all([
+    const [incomes, expenses, fuel, services] = await Promise.all([
       store.list('income', uid, { months: 6 }),
       store.list('expenses', uid, { months: 6 }),
+      store.list('fuel', uid),
+      store.list('services', uid),
     ])
 
     // ===== Hesaplamalar =====
@@ -84,6 +86,11 @@ export async function GET() {
       ...cards.filter((c: any) => c.balance > 0).map((c: any) => ({ name: c.cardName, type: 'Kart Borcu', amount: c.balance, dueDay: c.dueDay })),
     ]
 
+    // Bu yıl yakıt/servis toplamları
+    const yearStart = new Date(now.getFullYear(), 0, 1)
+    const fuelTotal = fuel.filter((f: any) => new Date(f.date) >= yearStart).reduce((s: number, f: any) => s + f.amount, 0)
+    const serviceTotal = services.filter((s: any) => new Date(s.date) >= yearStart).reduce((s: number, x: any) => s + x.amount, 0)
+
     return ok({
       kpis: {
         netWorth, bankTotal, assetTotal, propertyValue,
@@ -92,6 +99,9 @@ export async function GET() {
         monthlyIncome: thisMonthIncome, monthlyExpense: thisMonthExpense, monthlyNet,
         incomeChange, expenseChange, activeContracts, monthlyRentIncome,
         vehicleCount: vehicles.length,
+        fuelTotal,
+        serviceTotal,
+        vehicleTotalCost: fuelTotal + serviceTotal,
         wealthClass: getWealthClass(netWorth),
       },
       charts: {

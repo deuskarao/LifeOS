@@ -66,6 +66,9 @@ interface DashboardData {
     activeContracts: number
     monthlyRentIncome: number
     vehicleCount: number
+    fuelTotal?: number
+    serviceTotal?: number
+    vehicleTotalCost?: number
     wealthClass?: { label: string; short: string; description: string; color: string; icon: string }
   }
   charts: {
@@ -436,20 +439,22 @@ export function DashboardView() {
                 Detaylar <ArrowUpRight className="h-3 w-3" />
               </Button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground">Araç Sayısı</p>
                 <p className="mt-1 text-xl font-bold">{k.vehicleCount}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Net Değer</p>
-                <p className="mt-1 text-xl font-bold">{formatCompact(k.netWorth)}</p>
+                <p className="text-xs text-muted-foreground">Yakıt (Yıl)</p>
+                <p className="mt-1 text-xl font-bold text-amber-500">{formatCompact(k.fuelTotal || 0)}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Tasarruf</p>
-                <p className="mt-1 text-xl font-bold text-emerald-500">
-                  {k.monthlyIncome > 0 ? ((k.monthlyNet / k.monthlyIncome) * 100).toFixed(0) : 0}%
-                </p>
+                <p className="text-xs text-muted-foreground">Servis (Yıl)</p>
+                <p className="mt-1 text-xl font-bold text-sky-500">{formatCompact(k.serviceTotal || 0)}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Toplam Maliyet</p>
+                <p className="mt-1 text-xl font-bold">{formatCompact(k.vehicleTotalCost || 0)}</p>
               </div>
             </div>
           </CardContent>

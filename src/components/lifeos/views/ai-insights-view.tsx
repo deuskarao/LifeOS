@@ -144,6 +144,35 @@ export function AiInsightsView() {
   // Standart kullanıcı ve hak bittiyse upgrade promptu göster
   const blocked = !isDemoOrPremium && quota.data && !quota.data.canUseAi
 
+  // Standart kullanıcı AI'ya erişemez — tamamen kilit ekranı
+  if (!isDemoOrPremium) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="AI Finansal Asistan"
+          description="Yapay zeka destekli finansal sağlık analizi"
+          icon={Sparkles}
+        />
+        <Card className="border-violet-500/20">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-500 mb-4">
+              <Sparkles className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-bold">Premium Özellik</h2>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md">
+              AI Finansal Asistan sadece Premium üyeler içindir. Finansal verilerinizi
+              yapay zeka ile analiz ettirin, kişiselleştirilmiş öneriler alın.
+            </p>
+            <Button className="mt-6 gap-2" onClick={() => set('settings')}>
+              <Sparkles className="h-4 w-4" />
+              Premium'a Yükselt
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader

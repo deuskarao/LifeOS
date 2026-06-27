@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSession, signOut } from 'next-auth/react'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -21,8 +22,43 @@ import { SettingsView } from './views/settings-view'
 import { AdminView } from './views/admin-view'
 
 export function AppShell() {
-  const { active } = useNav()
+  const { active, set } = useNav()
+  const { data: session } = useSession()
+  const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
+  const isAdmin = role === 'admin'
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Admin her zaman admin panel'de başlar ve başka yere gidemez
+  useEffect(() => {
+    if (isAdmin && active !== 'admin') {
+      set('admin')
+    }
+    // Standart kullanıcı AI'ya erişemez
+    if (!isAdmin && active === 'ai-insights') {
+      const level = (session?.user as any)?.level
+      const isPremium = role === 'demo' || level === 'premium'
+      if (!isPremium) set('dashboard')
+    }
+  }, [isAdmin, active, set, session, role])
+
+  // 10 dakikalık otomatik logout (inaktivite tabanlı)
+  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    const resetTimer = () => {
+      if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current)
+      logoutTimerRef.current = setTimeout(() => {
+        signOut({ callbackUrl: '/' })
+      }, 10 * 60 * 1000) // 10 dakika
+    }
+    // Kullanıcı aktivitesinde timer'ı sıfırla
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll']
+    events.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }))
+    resetTimer()
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, resetTimer))
+      if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current)
+    }
+  }, [])
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -58,7 +94,7 @@ export function AppShell() {
         </main>
         <footer className="mt-auto border-t bg-background/80 backdrop-blur-sm">
           <div className="mx-auto w-full max-w-7xl px-4 md:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-            <p>© 2026 LifeOS — Yaşam Yönetim Platformu</p>
+            <p>© 2026 LifeOS — Tüm Hakları Saklıdır</p>
             <p className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Tüm sistemler çalışıyor

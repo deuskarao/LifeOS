@@ -7,7 +7,8 @@ import { clearDemoStore } from './store'
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: 10 * 60, // 10 dakika sonra otomatik logout
+    updateAge: 10 * 60, // her 10 dakikada bir token yenile
   },
   pages: {
     signIn: '/login',

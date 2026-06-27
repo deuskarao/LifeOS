@@ -385,3 +385,33 @@ Stage Summary:
 - Reports: tarih aralığı + gerçek PDF export
 - Dashboard: aylık net düzeltildi + finansal sınıf banner
 - Sidebar: sticky + logo navigasyon
+
+---
+Task ID: 11
+Agent: main
+Task: UX düzeltmeleri — footer, session, AI gizleme, admin-only, reports, dashboard
+
+Work Log:
+- Footer: "Supabase ile güçlendirilmiştir" → "Tüm Hakları Saklıdır" (login + app-shell)
+- Session: maxAge 10 dakika (600sn), client-side inaktivite timer (10dk sonra signOut), SessionProvider refetchInterval=60sn
+- Standart kullanıcı AI tamamen gizli: sidebar'da yok, app-shell useEffect ile dashboard'a redirect, AI view'ında kilit ekranı (Premium'a Yükselt CTA)
+- Raporlar "Tümü" filtresi: 2000 yerine 2025'ten başlıyor
+- Sidebar düzeltildi: admin sadece "Admin Panel" görür (ADMIN_GROUPS), normal nav items gizli, logo "YÖNETİM" etiketi, footer "Yönetici Modu"
+- App-shell: admin giriş yapınca direkt admin panel'e yönlendir (useEffect), admin başka view'a geçemez
+- Dashboard araç filosu kartı: 4 metrik (Araç Sayısı, Yakıt/Yıl, Servis/Yıl, Toplam Maliyet) — API'ye fuelTotal, serviceTotal, vehicleTotalCost eklendi
+
+Test (Agent Browser):
+- Admin login: sidebar'da SADECE "Admin Panel" ✓, "LifeOS YÖNETİM" etiketi ✓, admin panel default view ✓
+- Demo login: dashboard açıldı, araç filosu kartı 4 metrik gösteriyor (1 araç, ₺6.6K yakıt, ₺4.5K servis, ₺11.1K toplam) ✓
+- Standart user login: AI Asistan sidebar'da YOK ✓, "Yükselt" banner ✓
+- Footer: "© 2026 LifeOS — Tüm Hakları Saklıdır" ✓ (login + app)
+- Reports "Tümü": API 2025-01-01'den başlıyor ✓
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- Admin = sadece admin panel (normal arayüz yok)
+- Standart user = AI gizli (1 hak DB'de ama görünmez)
+- Session 10 dakika (inaktivite + JWT expiry)
+- Footer "Tüm Hakları Saklıdır"
+- Reports "Tümü" 2025'ten başlar
+- Dashboard araç kartında yakıt+servis harcamaları

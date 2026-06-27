@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     } else if (preset === '1m') {
       startDate = new Date(now.getFullYear(), now.getMonth(), 1)
     } else if (preset === 'all') {
-      startDate = new Date(2000, 0, 1)
+      startDate = new Date(2025, 0, 1)
     } else {
       // default: this year
       startDate = new Date(now.getFullYear(), 0, 1)
