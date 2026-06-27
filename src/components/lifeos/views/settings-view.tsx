@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore, useState } from 'react'
 import { useTheme } from 'next-themes'
+import { useSession } from 'next-auth/react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '../page-header'
 import { useNotificationPrefs } from '@/lib/notification-prefs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -13,6 +15,8 @@ import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Progress } from '@/components/ui/progress'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +31,12 @@ import {
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { api } from '@/lib/api-client'
-import { CURRENCIES, type CurrencyCode } from '@/lib/lifeos'
+import {
+  CURRENCIES,
+  type CurrencyCode,
+  getWealthClass,
+  formatCompact,
+} from '@/lib/lifeos'
 import {
   Settings,
   User,
@@ -45,6 +54,14 @@ import {
   Trash2,
   Loader2,
   Check,
+  X,
+  Crown,
+  Sparkles,
+  Lock,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Shield,
 } from 'lucide-react'
 
 const CURRENCY_STORAGE_KEY = 'lifeos_currency'
@@ -92,6 +109,10 @@ export function SettingsView() {
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Bildirimler</span>
           </TabsTrigger>
+          <TabsTrigger value="membership" className="gap-1.5">
+            <Crown className="h-4 w-4" />
+            <span className="hidden sm:inline">Üyelik</span>
+          </TabsTrigger>
           <TabsTrigger value="data" className="gap-1.5">
             <Database className="h-4 w-4" />
             <span className="hidden sm:inline">Veri</span>
@@ -109,6 +130,9 @@ export function SettingsView() {
         </TabsContent>
         <TabsContent value="notifications" className="mt-0">
           <NotificationsTab />
+        </TabsContent>
+        <TabsContent value="membership" className="mt-0">
+          <MembershipTab />
         </TabsContent>
         <TabsContent value="data" className="mt-0">
           <DataTab />
@@ -671,5 +695,608 @@ function DataTab() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+/* -------------------------- Membership -------------------------- */
+
+interface AiQuota {
+  level: string
+  canUseAi: boolean
+  usedToday: number
+  limit: number
+  remaining: number
+  isPremium: boolean
+}
+
+interface WealthClass {
+  label: string
+  short: string
+  description: string
+  color: string
+  icon: string
+}
+
+interface DashboardResponse {
+  kpis: {
+    netWorth: number
+    wealthClass?: WealthClass
+  }
+}
+
+interface PlanFeature {
+  label: string
+  included: boolean
+}
+
+const STANDARD_FEATURES: PlanFeature[] = [
+  { label: '1 AI sorusu/gün', included: true },
+  { label: 'Temel raporlar', included: true },
+  { label: 'Tüm finans modülleri', included: true },
+  { label: 'Gelişmiş raporlar', included: false },
+  { label: 'Finansal sınıf analizi', included: false },
+  { label: 'Öncelikli destek', included: false },
+]
+
+const PREMIUM_FEATURES: PlanFeature[] = [
+  { label: '5 AI sorusu/gün', included: true },
+  { label: 'Gelişmiş raporlar', included: true },
+  { label: 'Finansal sınıf analizi', included: true },
+  { label: 'Öncelikli destek', included: true },
+  { label: 'Tüm standart özellikler', included: true },
+]
+
+const WEALTH_COLOR_BORDER: Record<string, string> = {
+  rose: 'border-rose-500/30 bg-rose-500/5',
+  amber: 'border-amber-500/30 bg-amber-500/5',
+  sky: 'border-sky-500/30 bg-sky-500/5',
+  violet: 'border-violet-500/30 bg-violet-500/5',
+  emerald: 'border-emerald-500/30 bg-emerald-500/5',
+}
+
+const WEALTH_ICON_COLOR: Record<string, string> = {
+  rose: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  amber: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  sky: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+  violet: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  emerald: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+}
+
+function WealthClassIcon({ name, className }: { name: string; className?: string }) {
+  switch (name) {
+    case 'crown':
+      return <Crown className={className} />
+    case 'trending-up':
+      return <TrendingUp className={className} />
+    case 'trending-down':
+      return <TrendingDown className={className} />
+    case 'check':
+      return <Check className={className} />
+    case 'minus':
+      return <Minus className={className} />
+    default:
+      return <Minus className={className} />
+  }
+}
+
+function MembershipTab() {
+  const { data: session, update: updateSession } = useSession()
+  const qc = useQueryClient()
+  const user = session?.user as
+    | { id?: string; role?: string; level?: string; name?: string; email?: string }
+    | undefined
+  const userId = user?.id
+  const role = user?.role
+  const sessionLevel = user?.level
+  const isDemo = role === 'demo'
+  const isAdmin = role === 'admin'
+
+  const { data: quota, isLoading: quotaLoading } = useQuery<AiQuota>({
+    queryKey: ['ai-quota'],
+    queryFn: () => api.get<AiQuota>('/api/lifeos/ai-quota'),
+  })
+
+  const { data: dashboard } = useQuery<DashboardResponse>({
+    queryKey: ['dashboard'],
+    queryFn: () => api.get<DashboardResponse>('/api/lifeos/dashboard'),
+  })
+
+  const levelMut = useMutation<unknown, Error, string>({
+    mutationFn: (level: string) =>
+      api.put(`/api/lifeos/users/${userId}/level`, { level }),
+    onSuccess: async (_data, level) => {
+      await qc.invalidateQueries({ queryKey: ['ai-quota'] })
+      await qc.invalidateQueries({ queryKey: ['dashboard'] })
+      toast.success(
+        level === 'premium'
+          ? 'Premium üyeliğe yükseltildiniz!'
+          : 'Standart üyeliğe geçildi',
+      )
+      // Session'ı yenile — jwt callback trigger=update ile DB'den yeni level çeker
+      await updateSession({})
+      setTimeout(() => window.location.reload(), 500)
+    },
+    onError: (e: Error) => toast.error(e?.message || 'İşlem başarısız'),
+  })
+
+  // Demo & admin → always premium
+  const currentLevel: string =
+    isDemo || isAdmin ? 'premium' : (quota?.level || sessionLevel || 'standard')
+  const isPremium = currentLevel === 'premium'
+
+  const usedToday = quota?.usedToday ?? 0
+  const limit = quota?.limit ?? (isPremium ? 5 : 1)
+  const remaining = quota?.remaining ?? Math.max(0, limit - usedToday)
+  const usagePercent = limit > 0 ? Math.min(100, (usedToday / limit) * 100) : 0
+  const canChangePlan = !isDemo && !isAdmin && !!userId
+
+  const netWorth = dashboard?.kpis?.netWorth ?? 0
+  const wealthClass: WealthClass =
+    dashboard?.kpis?.wealthClass ?? getWealthClass(netWorth)
+
+  return (
+    <div className="space-y-4">
+      {/* Current plan summary card */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <Card className={isPremium ? 'border-violet-500/40' : ''}>
+          <div
+            className={`h-1 w-full rounded-t-xl ${
+              isPremium
+                ? 'bg-gradient-to-r from-violet-500 via-emerald-500 to-violet-500'
+                : 'bg-muted-foreground/25'
+            }`}
+          />
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardDescription>Mevcut Üyeliğiniz</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  {isPremium ? (
+                    <Crown className="h-5 w-5 text-violet-500" />
+                  ) : (
+                    <Shield className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  {isPremium ? 'Premium' : 'Standart'}
+                  {isPremium && (
+                    <Badge className="bg-violet-500/15 text-violet-600 dark:text-violet-400">
+                      PRO
+                    </Badge>
+                  )}
+                </CardTitle>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Üyelik Başlangıcı</p>
+                <p className="text-sm font-medium">2025</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Bugün AI kullanımı</p>
+                {quotaLoading ? (
+                  <Skeleton className="mt-1.5 h-5 w-16" />
+                ) : (
+                  <p className="mt-0.5 text-lg font-semibold">
+                    {usedToday}
+                    <span className="text-sm text-muted-foreground">/{limit}</span>
+                  </p>
+                )}
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Kalan hak</p>
+                {quotaLoading ? (
+                  <Skeleton className="mt-1.5 h-5 w-16" />
+                ) : (
+                  <p className="mt-0.5 text-lg font-semibold">{remaining}</p>
+                )}
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Durum</p>
+                {quotaLoading ? (
+                  <Skeleton className="mt-1.5 h-5 w-16" />
+                ) : (
+                  <p className="mt-0.5 text-sm font-semibold">
+                    {quota?.canUseAi === false ? (
+                      <span className="text-rose-500">Limit doldu</span>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        Aktif
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Bugün: {usedToday}/{limit} hak kullanıldı
+                </span>
+                <span className="text-muted-foreground">
+                  %{Math.round(usagePercent)}
+                </span>
+              </div>
+              <Progress value={usagePercent} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Demo notice */}
+      {isDemo && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.05 }}
+        >
+          <Card className="border-violet-500/30 bg-violet-500/5">
+            <CardContent className="flex items-start gap-3 p-4">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  Demo modu — Premium özellikler aktiftir
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Demo modunda Premium özellikler aktiftir. Çıkış yaptığınızda
+                  veriler sıfırlanır. Üyelik değişikliği yapamazsınız.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Wealth class card */}
+      <WealthClassCard
+        isPremium={isPremium}
+        isDemo={isDemo}
+        netWorth={netWorth}
+        wealthClass={wealthClass}
+        canUpgrade={!isPremium && canChangePlan}
+        onUpgrade={() => levelMut.mutate('premium')}
+        upgrading={levelMut.isPending && levelMut.variables === 'premium'}
+      />
+
+      {/* Plan cards */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PlanCard
+          name="Standart"
+          price="Ücretsiz"
+          priceNote="her zaman"
+          features={STANDARD_FEATURES}
+          isCurrent={currentLevel === 'standard'}
+          accent="standard"
+          canChange={canChangePlan}
+          changing={levelMut.isPending}
+          onChange={() => levelMut.mutate('standard')}
+          actionLabel="Düşür"
+          disabledHint={
+            isDemo
+              ? 'Demo modunda değiştirilemez'
+              : isAdmin
+                ? 'Yönetici hesabı her zaman Premium'
+                : undefined
+          }
+        />
+        <PlanCard
+          name="Premium"
+          price="₺49"
+          priceNote="/ay"
+          features={PREMIUM_FEATURES}
+          isCurrent={currentLevel === 'premium'}
+          accent="premium"
+          recommended
+          canChange={canChangePlan}
+          changing={levelMut.isPending}
+          onChange={() => levelMut.mutate('premium')}
+          actionLabel="Yükselt"
+          disabledHint={
+            isDemo
+              ? 'Demo modunda değiştirilemez'
+              : isAdmin
+                ? 'Yönetici hesabı her zaman Premium'
+                : undefined
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
+function PlanCard({
+  name,
+  price,
+  priceNote,
+  features,
+  isCurrent,
+  accent,
+  recommended,
+  canChange,
+  changing,
+  onChange,
+  actionLabel,
+  disabledHint,
+}: {
+  name: string
+  price: string
+  priceNote: string
+  features: PlanFeature[]
+  isCurrent: boolean
+  accent: 'standard' | 'premium'
+  recommended?: boolean
+  canChange: boolean
+  changing: boolean
+  onChange: () => void
+  actionLabel: string
+  disabledHint?: string
+}) {
+  const isPremium = accent === 'premium'
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      whileHover={{ y: -2 }}
+    >
+      <Card
+        className={`relative h-full overflow-hidden transition-shadow ${
+          isCurrent
+            ? isPremium
+              ? 'border-violet-500/60 shadow-lg shadow-violet-500/10'
+              : 'border-primary/50'
+            : isPremium
+              ? 'border-violet-500/40 hover:shadow-lg hover:shadow-violet-500/5'
+              : 'hover:border-border'
+        }`}
+      >
+        {isPremium && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-500 via-emerald-500 to-violet-500" />
+        )}
+        {recommended && !isCurrent && (
+          <div className="absolute right-3 top-3">
+            <Badge className="bg-violet-500/15 text-violet-600 dark:text-violet-400">
+              <Sparkles className="mr-1 h-3 w-3" />
+              ÖNERİLEN
+            </Badge>
+          </div>
+        )}
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                isPremium
+                  ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {isPremium ? (
+                <Crown className="h-5 w-5" />
+              ) : (
+                <Shield className="h-5 w-5" />
+              )}
+            </div>
+            <div>
+              <CardTitle className="text-base">{name}</CardTitle>
+              <CardDescription className="text-xs">
+                {isPremium ? 'Gelişmiş özellikler' : 'Temel özellikler'}
+              </CardDescription>
+            </div>
+          </div>
+          <div className="mt-4 flex items-baseline gap-1">
+            <span className="text-3xl font-bold tracking-tight">{price}</span>
+            <span className="text-sm text-muted-foreground">{priceNote}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ul className="space-y-2.5">
+            {features.map((f) => (
+              <li key={f.label} className="flex items-start gap-2 text-sm">
+                {f.included ? (
+                  <Check
+                    className={`mt-0.5 h-4 w-4 shrink-0 ${
+                      isPremium ? 'text-emerald-500' : 'text-primary'
+                    }`}
+                  />
+                ) : (
+                  <X className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
+                )}
+                <span
+                  className={
+                    f.included
+                      ? 'text-foreground/90'
+                      : 'text-muted-foreground line-through'
+                  }
+                >
+                  {f.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="pt-2">
+            {isCurrent ? (
+              <Button variant="outline" className="w-full gap-2" disabled>
+                <Check className="h-4 w-4" />
+                Mevcut Plan
+              </Button>
+            ) : (
+              <Button
+                className={`w-full gap-2 ${
+                  isPremium
+                    ? 'bg-violet-600 text-white hover:bg-violet-700'
+                    : ''
+                }`}
+                variant={isPremium ? 'default' : 'outline'}
+                disabled={!canChange || changing}
+                onClick={onChange}
+              >
+                {changing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    İşleniyor…
+                  </>
+                ) : (
+                  <>
+                    {isPremium && <Sparkles className="h-4 w-4" />}
+                    {actionLabel}
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+          {!canChange && !isCurrent && disabledHint && (
+            <p className="text-center text-xs text-muted-foreground">
+              {disabledHint}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  )
+}
+
+function WealthClassCard({
+  isPremium,
+  isDemo,
+  netWorth,
+  wealthClass,
+  canUpgrade,
+  onUpgrade,
+  upgrading,
+}: {
+  isPremium: boolean
+  isDemo: boolean
+  netWorth: number
+  wealthClass: WealthClass
+  canUpgrade: boolean
+  onUpgrade: () => void
+  upgrading: boolean
+}) {
+  // Premium or demo → show actual wealth class
+  if (isPremium || isDemo) {
+    const colorBorder =
+      WEALTH_COLOR_BORDER[wealthClass.color] || WEALTH_COLOR_BORDER.violet
+    const iconColor =
+      WEALTH_ICON_COLOR[wealthClass.color] || WEALTH_ICON_COLOR.violet
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, delay: 0.05 }}
+      >
+        <Card className={`overflow-hidden ${colorBorder}`}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Crown className="h-4 w-4 text-violet-500" />
+              Finansal Sınıf Analizi
+              <Badge
+                variant="secondary"
+                className="bg-violet-500/15 text-violet-600 dark:text-violet-400"
+              >
+                PREMIUM
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Net servetinize göre finansal sınıfınız
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-center gap-4">
+              <div
+                className={`flex h-16 w-16 items-center justify-center rounded-xl ${iconColor}`}
+              >
+                <WealthClassIcon
+                  name={wealthClass.icon}
+                  className="h-8 w-8"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <p className="text-xl font-bold">{wealthClass.label}</p>
+                  <Badge variant="outline" className="text-xs">
+                    {formatCompact(netWorth)} net servet
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {wealthClass.description}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    )
+  }
+
+  // Standard → locked/blurred
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: 0.05 }}
+    >
+      <Card className="relative overflow-hidden border-dashed">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Crown className="h-4 w-4 text-violet-500" />
+            Finansal Sınıf Analizi
+          </CardTitle>
+          <CardDescription>
+            Net servetinize göre finansal sınıfınızı öğrenin
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="relative rounded-xl border bg-muted/30 p-6">
+            {/* Blurred preview */}
+            <div className="pointer-events-none flex select-none items-center gap-4 blur-sm">
+              <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted">
+                <Crown className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-xl font-bold">Üst-Orta Sınıf</p>
+                <p className="text-sm text-muted-foreground">
+                  Net servet 5M-20M₺ — üst gelir grubu
+                </p>
+              </div>
+            </div>
+            {/* Overlay */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400">
+                <Lock className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">
+                  Finansal sınıf analizi Premium özelliktir
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Net servetinize göre finansal sınıfınızı görmek için
+                  Premium&apos;a geçin
+                </p>
+              </div>
+              {canUpgrade && (
+                <Button
+                  className="mt-1 gap-2 bg-violet-600 text-white hover:bg-violet-700"
+                  onClick={onUpgrade}
+                  disabled={upgrading}
+                >
+                  {upgrading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Premium&apos;a Geç
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   )
 }

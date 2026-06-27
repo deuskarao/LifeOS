@@ -73,22 +73,36 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { active, set } = useNav()
   const { data: session } = useSession()
   const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
+  const level = (session?.user as any)?.level as 'standard' | 'premium' | undefined
   const isAdmin = role === 'admin'
+  const isPremiumOrDemo = role === 'admin' || role === 'demo' || level === 'premium'
+
+  // AI Asistan sadece premium/demo/admin için görünür
+  const filteredGroups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => {
+      if (item.id === 'ai-insights' && !isPremiumOrDemo) return false
+      return true
+    }),
+  })).filter((g) => g.items.length > 0)
 
   const groups = isAdmin
     ? [
-        ...NAV_GROUPS,
+        ...filteredGroups,
         {
           label: 'Yönetim',
           items: [{ id: 'admin' as SectionId, label: 'Admin Panel', icon: ShieldCheck, badge: 'ADMIN' }],
         },
       ]
-    : NAV_GROUPS
+    : filteredGroups
 
   return (
     <div className="flex h-full flex-col">
-      {/* Brand */}
-      <div className="flex h-16 items-center gap-2.5 border-b px-5">
+      {/* Brand — tıklayınca dashboard'a gider */}
+      <button
+        onClick={() => { set('dashboard'); onNavigate?.() }}
+        className="flex h-16 items-center gap-2.5 border-b px-5 hover:bg-muted/50 transition-colors text-left"
+      >
         <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-emerald text-white shadow-lg shadow-emerald-500/20">
           <Wallet className="h-5 w-5" />
         </div>
@@ -96,7 +110,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <p className="text-sm font-bold tracking-tight">LifeOS</p>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Yaşam Yönetimi</p>
         </div>
-      </div>
+      </button>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
@@ -145,15 +159,38 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t p-3">
-        <div className="rounded-lg bg-muted/50 p-3">
-          <p className="text-[11px] font-semibold text-muted-foreground">LifeOS Pro</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground/70">
-            Tüm yaşam metrikleriniz tek panelde.
-          </p>
+      {/* Premium upgrade banner for standard users */}
+      {!isPremiumOrDemo && (
+        <div className="border-t p-3">
+          <div className="rounded-lg bg-gradient-to-br from-violet-500/15 to-violet-500/5 border border-violet-500/20 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              <p className="text-[11px] font-semibold text-violet-600 dark:text-violet-400">Premium'a Yükselt</p>
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              AI Asistan, sınırsız analiz ve daha fazlası.
+            </p>
+            <button
+              onClick={() => { set('settings'); onNavigate?.() }}
+              className="w-full rounded-md bg-violet-500 hover:bg-violet-600 text-white text-[11px] font-medium py-1.5 transition-colors"
+            >
+              Yükselt
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+      {isPremiumOrDemo && (
+        <div className="border-t p-3">
+          <div className="rounded-lg bg-muted/50 p-3">
+            <p className="text-[11px] font-semibold text-muted-foreground">
+              {role === 'demo' ? 'Demo Modu' : 'Premium Üyelik'}
+            </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground/70">
+              {role === 'demo' ? 'Veriler çıkışta sıfırlanır' : 'Tüm özellikler aktif'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

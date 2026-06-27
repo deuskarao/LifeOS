@@ -26,8 +26,8 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 shrink-0 border-r bg-sidebar/50 backdrop-blur-sm">
+      {/* Desktop sidebar — sticky, sayfa ile uzamaz */}
+      <aside className="hidden md:flex w-64 shrink-0 border-r bg-sidebar/50 backdrop-blur-sm sticky top-0 h-screen">
         <Sidebar />
       </aside>
 
@@ -58,7 +58,7 @@ export function AppShell() {
         </main>
         <footer className="mt-auto border-t bg-background/80 backdrop-blur-sm">
           <div className="mx-auto w-full max-w-7xl px-4 md:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-            <p>© {new Date().getFullYear()} LifeOS — Yaşam Yönetim Platformu</p>
+            <p>© 2026 LifeOS — Yaşam Yönetim Platformu</p>
             <p className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Tüm sistemler çalışıyor

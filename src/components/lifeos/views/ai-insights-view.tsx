@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
 import { api, ApiError } from '@/lib/api-client'
+import { useNav } from '@/lib/nav-store'
 import { PageHeader } from '../page-header'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +39,15 @@ interface InsightsResponse {
   summary: string
   insights: Insight[]
   recommendations: string[]
+}
+
+interface QuotaResponse {
+  level: string
+  canUseAi: boolean
+  usedToday: number
+  limit: number
+  remaining: number
+  isPremium: boolean
 }
 
 const INSIGHT_STYLES: Record<
@@ -94,22 +105,44 @@ const SUGGESTED_QUESTIONS = [
 
 export function AiInsightsView() {
   const [question, setQuestion] = useState('')
+  const { data: session } = useSession()
+  const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
+  const level = (session?.user as any)?.level as 'standard' | 'premium' | undefined
+  const isDemoOrPremium = role === 'demo' || role === 'admin' || level === 'premium'
+
+  // Quota bilgisi
+  const quota = useQuery<QuotaResponse>({
+    queryKey: ['ai-quota'],
+    queryFn: () => api.get<QuotaResponse>('/api/lifeos/ai-quota'),
+    refetchOnMount: true,
+  })
 
   const mutation = useMutation<InsightsResponse, ApiError, string | undefined>({
     mutationFn: (q?: string) =>
       api.post<InsightsResponse>('/api/lifeos/ai-insights', { question: q || undefined }),
+    onSuccess: () => {
+      quota.refetch()
+    },
     onError: (err) => {
       toast.error(err.message || 'AI analizi başarısız oldu. Lütfen tekrar deneyin.')
+      quota.refetch()
     },
   })
 
   const handleAnalyze = () => {
+    if (!isDemoOrPremium && quota.data && !quota.data.canUseAi) {
+      toast.error("Günlük AI soru hakkınızı doldurdunuz. Premium'a yükselterek günde 5 hak kazanabilirsiniz.")
+      return
+    }
     mutation.mutate(question.trim() || undefined)
   }
 
   const data = mutation.data
   const isLoading = mutation.isPending
   const isError = mutation.isError
+
+  // Standart kullanıcı ve hak bittiyse upgrade promptu göster
+  const blocked = !isDemoOrPremium && quota.data && !quota.data.canUseAi
 
   return (
     <div className="space-y-6">
@@ -170,6 +203,48 @@ export function AiInsightsView() {
       {/* Question input + CTA */}
       <Card>
         <CardContent className="space-y-4 p-5 md:p-6">
+          {/* Quota / upgrade banner */}
+          {blocked ? (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Günlük AI hakkınız doldu</p>
+                  <p className="text-xs text-muted-foreground">
+                    Standart üyelikte günde 1 hak. Premium'a yükselerek günde 5 hak kazanabilirsiniz.
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => set('settings')} className="shrink-0">
+                Premium'a Yükselt
+              </Button>
+            </div>
+          ) : quota.data && !isDemoOrPremium ? (
+            <div className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">
+                <Sparkles className="inline h-3 w-3 mr-1" />
+                Günlük hak: <span className="font-semibold text-foreground">{quota.data.remaining}/{quota.data.limit}</span> kaldı
+              </p>
+              <button
+                onClick={() => set('settings')}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Premium'a yükselt →
+              </button>
+            </div>
+          ) : isDemoOrPremium && quota.data ? (
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
+              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                {role === 'demo' ? 'Demo Modu' : level === 'premium' || role === 'admin' ? 'Premium' : ''}
+              </Badge>
+              <p className="text-xs text-muted-foreground">
+                Sınırsız AI analizi — {role === 'demo' ? 'demo kullanıcıları için' : 'premium üyelik avantajı'}
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <label htmlFor="ai-question" className="text-sm font-medium">
               Soru Sor (Opsiyonel)
@@ -203,7 +278,7 @@ export function AiInsightsView() {
             <Button
               size="lg"
               onClick={handleAnalyze}
-              disabled={isLoading}
+              disabled={isLoading || blocked}
               className="gap-2 sm:w-auto"
             >
               {isLoading ? (

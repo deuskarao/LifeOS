@@ -1,4 +1,4 @@
-import { ok, fail } from '@/lib/lifeos'
+import { ok, fail, getWealthClass } from '@/lib/lifeos'
 import { getStore } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +19,7 @@ export async function GET() {
     ])
 
     // Son 6 ay gelir/gider
+    const now = new Date()
     const sixMonthsAgo = new Date()
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
     sixMonthsAgo.setDate(1)
@@ -41,10 +42,16 @@ export async function GET() {
 
     const totalIncome = incomes.reduce((s: number, i: any) => s + i.amount, 0)
     const totalExpense = expenses.reduce((s: number, e: any) => s + e.amount, 0)
-    const monthlyNet = totalIncome - totalExpense
+    // monthlyNet bu ayın gelir-gider farkı (yıllık değil)
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const thisMonthIncome = incomes.filter((x: any) => new Date(x.date) >= thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
+    const lastMonthIncome = incomes.filter((x: any) => new Date(x.date) >= lastMonthStart && new Date(x.date) < thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
+    const thisMonthExpense = expenses.filter((x: any) => new Date(x.date) >= thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
+    const lastMonthExpense = expenses.filter((x: any) => new Date(x.date) >= lastMonthStart && new Date(x.date) < thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
+    const monthlyNet = thisMonthIncome - thisMonthExpense
 
     const months: { month: string; income: number; expense: number }[] = []
-    const now = new Date()
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const label = d.toLocaleDateString('tr-TR', { month: 'short' })
@@ -53,13 +60,6 @@ export async function GET() {
       const exp = expenses.filter((x: any) => new Date(x.date) >= d && new Date(x.date) < next).reduce((s: number, x: any) => s + x.amount, 0)
       months.push({ month: label, income: inc, expense: exp })
     }
-
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const thisMonthIncome = incomes.filter((x: any) => new Date(x.date) >= thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
-    const lastMonthIncome = incomes.filter((x: any) => new Date(x.date) >= lastMonthStart && new Date(x.date) < thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
-    const thisMonthExpense = expenses.filter((x: any) => new Date(x.date) >= thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
-    const lastMonthExpense = expenses.filter((x: any) => new Date(x.date) >= lastMonthStart && new Date(x.date) < thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
 
     const incomeChange = lastMonthIncome > 0 ? ((thisMonthIncome - lastMonthIncome) / lastMonthIncome) * 100 : 0
     const expenseChange = lastMonthExpense > 0 ? ((thisMonthExpense - lastMonthExpense) / lastMonthExpense) * 100 : 0
@@ -92,6 +92,7 @@ export async function GET() {
         monthlyIncome: thisMonthIncome, monthlyExpense: thisMonthExpense, monthlyNet,
         incomeChange, expenseChange, activeContracts, monthlyRentIncome,
         vehicleCount: vehicles.length,
+        wealthClass: getWealthClass(netWorth),
       },
       charts: {
         months,

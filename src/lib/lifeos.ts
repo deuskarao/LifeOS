@@ -156,3 +156,66 @@ export const LOAN_CATEGORIES = [
 export const PROPERTY_TYPES = ['Daire', 'Villa', 'Dükkan', 'Arsa', 'Ofis'] as const
 export const VEHICLE_FUEL_TYPES = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik'] as const
 export const SERVICE_TYPES = ['Periyodik Bakım', 'Yağ Değişimi', 'Lastik', 'Sigorta', 'Muayene', 'Diğer'] as const
+
+/** Net servete göre sosyal sınıf belirler (Türkiye ekonomik sınıflandırması). */
+export function getWealthClass(netWorth: number): {
+  label: string
+  short: string
+  description: string
+  color: string
+  icon: string
+} {
+  if (netWorth < 0) {
+    return {
+      label: 'Borçlu',
+      short: 'Borçlu',
+      description: 'Net servetiniz negatif — borçlarınız varlıklarınızı aşıyor',
+      color: 'rose',
+      icon: 'trending-down',
+    }
+  }
+  if (netWorth < 250000) {
+    return {
+      label: 'Alt Sınıf',
+      short: 'Alt',
+      description: 'Net servet 250.000₺ altı — finansal güvenlik için birikim öncelikli',
+      color: 'rose',
+      icon: 'trending-down',
+    }
+  }
+  if (netWorth < 1000000) {
+    return {
+      label: 'Alt-Orta Sınıf',
+      short: 'Alt-Orta',
+      description: 'Net servet 250K-1M₺ — temel finansal güvenlik sağlanıyor',
+      color: 'amber',
+      icon: 'minus',
+    }
+  }
+  if (netWorth < 5000000) {
+    return {
+      label: 'Orta Sınıf',
+      short: 'Orta',
+      description: 'Net servet 1M-5M₺ — sağlam finansal duruş',
+      color: 'sky',
+      icon: 'check',
+    }
+  }
+  if (netWorth < 20000000) {
+    return {
+      label: 'Üst-Orta Sınıf',
+      short: 'Üst-Orta',
+      description: 'Net servet 5M-20M₺ — üst gelir grubu',
+      color: 'violet',
+      icon: 'trending-up',
+    }
+  }
+  return {
+    label: 'Üst Sınıf',
+    short: 'Üst',
+    description: 'Net servet 20M₺+ — yüksek net değer segmenti',
+    color: 'emerald',
+    icon: 'crown',
+  }
+}
+

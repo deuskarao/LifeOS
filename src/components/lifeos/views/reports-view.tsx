@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import { api } from '@/lib/api-client'
 import { formatCurrency, formatCompact, formatDate } from '@/lib/lifeos'
-import { StatCard } from '../stat-card'
 import { PageHeader } from '../page-header'
 import { ChartCard, CHART_COLORS, CHART_COLOR_ARRAY, chartTooltipStyle, gridStroke } from './chart-card'
 import { toast } from 'sonner'
@@ -14,7 +16,6 @@ import {
   TrendingDown,
   PiggyBank,
   Percent,
-  History,
   Wallet,
   Building2,
   Car,
@@ -23,11 +24,14 @@ import {
   Shield,
   CreditCard,
   Landmark,
+  Calendar,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -53,13 +57,16 @@ import {
 import { motion } from 'framer-motion'
 
 interface ReportsData {
+  period: { from: string; to: string; prevFrom: string; prevTo: string }
   summary: {
-    thisYearIncome: number
-    lastYearIncome: number
-    thisYearExpense: number
-    lastYearExpense: number
-    yearSavings: number
+    periodIncome: number
+    prevIncome: number
+    periodExpense: number
+    prevExpense: number
+    periodSavings: number
     savingsRate: number
+    incomeChange: number
+    expenseChange: number
     netWorth: number
     bankTotal: number
     assetTotal: number
@@ -91,7 +98,17 @@ interface ReportsData {
   }[]
 }
 
-// Color per net worth bar
+type PresetKey = 'this-year' | 'last-year' | '6m' | '3m' | '1m' | 'all' | 'custom'
+
+const PRESETS: { key: PresetKey; label: string }[] = [
+  { key: '1m', label: 'Bu Ay' },
+  { key: '3m', label: 'Son 3 Ay' },
+  { key: '6m', label: 'Son 6 Ay' },
+  { key: 'this-year', label: 'Bu Yıl' },
+  { key: 'last-year', label: 'Geçen Yıl' },
+  { key: 'all', label: 'Tümü' },
+]
+
 const NET_WORTH_COLORS: Record<string, string> = {
   'Banka': CHART_COLORS.emerald,
   'Varlıklar': CHART_COLORS.amber,
@@ -106,19 +123,182 @@ const PROPERTY_STATUS_COLORS: Record<string, string> = {
   'Satılık': 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-transparent',
 }
 
-function exportCsv(data: ReportsData) {
+/** Returns ISO yyyy-mm-dd for a Date (local time). */
+function isoDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Builds the API query string from the selected date params. */
+function buildQuery(preset: PresetKey, from: string, to: string): string {
+  if (preset === 'custom' && from && to) {
+    return `?from=${from}&to=${to}`
+  }
+  return `?preset=${preset}`
+}
+
+/** Human-readable period label for the chosen date range. */
+function periodLabel(preset: PresetKey, from: string, to: string, period?: { from: string; to: string }): string {
+  if (preset === 'custom' && from && to) {
+    return `${formatDate(from)} - ${formatDate(to)}`
+  }
+  if (period?.from && period?.to) {
+    return `${formatDate(period.from)} - ${formatDate(period.to)}`
+  }
+  return PRESETS.find((p) => p.key === preset)?.label || 'Dönem'
+}
+
+/** Real PDF export using jsPDF + jspdf-autotable. */
+function exportPdf(data: ReportsData, label: string) {
+  try {
+    const doc = new jsPDF()
+    // Title
+    doc.setFontSize(18)
+    doc.setTextColor(20, 20, 20)
+    doc.text('LifeOS Finansal Rapor', 14, 20)
+    doc.setFontSize(10)
+    doc.setTextColor(100)
+    doc.text(`Dönem: ${label}`, 14, 28)
+    doc.text(`Oluşturulma: ${new Date().toLocaleDateString('tr-TR')}`, 14, 34)
+
+    // Summary section
+    autoTable(doc, {
+      startY: 42,
+      head: [['Özet', 'Tutar']],
+      body: [
+        ['Dönem Geliri', formatCurrency(data.summary.periodIncome)],
+        ['Dönem Gideri', formatCurrency(data.summary.periodExpense)],
+        ['Dönem Tasarrufu', formatCurrency(data.summary.periodSavings)],
+        ['Tasarruf Oranı', `%${data.summary.savingsRate.toFixed(1)}`],
+        ['Net Değer', formatCurrency(data.summary.netWorth)],
+        ['Banka Toplam', formatCurrency(data.summary.bankTotal)],
+        ['Varlıklar', formatCurrency(data.summary.assetTotal)],
+        ['Emlak', formatCurrency(data.summary.propertyTotal)],
+        ['Kredi Borcu', formatCurrency(data.summary.loanDebt)],
+        ['Kart Borcu', formatCurrency(data.summary.cardDebt)],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+      bodyStyles: { textColor: 50 },
+      margin: { left: 14, right: 14 },
+    })
+
+    // Expense by category table
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 10,
+      head: [['Gider Kategorisi', 'Tutar']],
+      body: data.charts.expenseByCategory.map((c) => [c.name, formatCurrency(c.value)]),
+      theme: 'striped',
+      headStyles: { fillColor: [244, 63, 94], textColor: 255, fontStyle: 'bold' },
+      margin: { left: 14, right: 14 },
+    })
+
+    // Income by category table
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 10,
+      head: [['Gelir Kategorisi', 'Tutar']],
+      body: data.charts.incomeByCategory.map((c) => [c.name, formatCurrency(c.value)]),
+      theme: 'striped',
+      headStyles: { fillColor: [14, 165, 233], textColor: 255, fontStyle: 'bold' },
+      margin: { left: 14, right: 14 },
+    })
+
+    // Monthly trend table
+    if (data.charts.monthlyTrend.length > 0) {
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 10,
+        head: [['Ay', 'Gelir', 'Gider', 'Net']],
+        body: data.charts.monthlyTrend.map((m) => [
+          m.month,
+          formatCurrency(m.income),
+          formatCurrency(m.expense),
+          formatCurrency(m.net),
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold' },
+        margin: { left: 14, right: 14 },
+      })
+    }
+
+    // Property performance
+    if (data.propertyStats.length > 0) {
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 10,
+        head: [['Mülk', 'Tip', 'Güncel Değer', 'Aylık Kira', 'Yıllık Getiri %', 'Değer Artışı %']],
+        body: data.propertyStats.map((p) => [
+          p.name,
+          p.type,
+          formatCurrency(p.currentValue),
+          formatCurrency(p.monthlyRent),
+          p.yieldRate.toFixed(1),
+          p.appreciation.toFixed(1),
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold' },
+        margin: { left: 14, right: 14 },
+      })
+    }
+
+    // Vehicle cost section
+    if (data.charts.fuelByVehicle.length > 0) {
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 10,
+        head: [['Araç Yakıt Maliyeti', 'Tutar']],
+        body: data.charts.fuelByVehicle.map((c) => [c.name, formatCurrency(c.value)]),
+        theme: 'striped',
+        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold' },
+        margin: { left: 14, right: 14 },
+      })
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 4,
+        body: [
+          ['Yakıt Toplam', formatCurrency(data.summary.fuelTotal)],
+          ['Servis Toplam', formatCurrency(data.summary.serviceTotal)],
+          ['Araç Toplam Maliyet', formatCurrency(data.summary.vehicleTotalCost)],
+        ],
+        theme: 'plain',
+        margin: { left: 14, right: 14 },
+      })
+    }
+
+    // Footer page numbers
+    const pageCount = (doc as any).internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(150)
+      doc.text(
+        `LifeOS • Sayfa ${i}/${pageCount}`,
+        14,
+        (doc as any).internal.pageSize.height - 8
+      )
+    }
+
+    doc.save(`lifeos-rapor-${new Date().toISOString().slice(0, 10)}.pdf`)
+    toast.success('PDF raporu indirildi')
+  } catch (e: unknown) {
+    console.error('PDF export error:', e)
+    toast.error('PDF oluşturulurken hata oluştu')
+  }
+}
+
+function exportCsv(data: ReportsData, label: string) {
   const rows: string[][] = []
   const today = new Date().toLocaleDateString('tr-TR')
 
-  rows.push(['LifeOS Yillik Rapor', today])
+  rows.push(['LifeOS Finansal Rapor', label, today])
   rows.push([])
   rows.push(['OZET'])
-  rows.push(['Bu Yil Gelir', String(data.summary.thisYearIncome)])
-  rows.push(['Bu Yil Gider', String(data.summary.thisYearExpense)])
-  rows.push(['Yillik Tasarruf', String(data.summary.yearSavings)])
+  rows.push(['Dönem Geliri', String(data.summary.periodIncome)])
+  rows.push(['Dönem Gideri', String(data.summary.periodExpense)])
+  rows.push(['Dönem Tasarrufu', String(data.summary.periodSavings)])
   rows.push(['Tasarruf Orani %', data.summary.savingsRate.toFixed(2)])
-  rows.push(['Gecen Yil Gelir', String(data.summary.lastYearIncome)])
-  rows.push(['Gecen Yil Gider', String(data.summary.lastYearExpense)])
+  rows.push(['Gelir Degisimi %', data.summary.incomeChange.toFixed(2)])
+  rows.push(['Gider Degisimi %', data.summary.expenseChange.toFixed(2)])
+  rows.push(['Onceki Doner Geliri', String(data.summary.prevIncome)])
+  rows.push(['Onceki Donem Gideri', String(data.summary.prevExpense)])
   rows.push(['Net Deger', String(data.summary.netWorth)])
   rows.push(['Banka Toplam', String(data.summary.bankTotal)])
   rows.push(['Varlik Toplam', String(data.summary.assetTotal)])
@@ -201,26 +381,64 @@ function exportCsv(data: ReportsData) {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
-  toast.success('Excel CSV dosyasi indirildi')
+  toast.success('Excel CSV dosyası indirildi')
 }
 
 export function ReportsView() {
+  // Preset + custom date range state
+  const [preset, setPreset] = useState<PresetKey>('this-year')
+  const now = new Date()
+  const defaultFrom = isoDate(new Date(now.getFullYear(), 0, 1))
+  const defaultTo = isoDate(now)
+  const [customFrom, setCustomFrom] = useState<string>(defaultFrom)
+  const [customTo, setCustomTo] = useState<string>(defaultTo)
+
+  // The actually-applied query (separate from inputs so user can type then click "Uygula")
+  const [appliedFrom, setAppliedFrom] = useState<string>(defaultFrom)
+  const [appliedTo, setAppliedTo] = useState<string>(defaultTo)
+
+  const queryStr = buildQuery(preset, appliedFrom, appliedTo)
+
   const { data, isLoading } = useQuery<ReportsData>({
-    queryKey: ['reports'],
-    queryFn: () => api.get<ReportsData>('/api/lifeos/reports'),
+    queryKey: ['reports', preset, appliedFrom, appliedTo],
+    queryFn: () => api.get<ReportsData>(`/api/lifeos/reports${queryStr}`),
   })
+
+  const handlePresetClick = (key: PresetKey) => {
+    setPreset(key)
+    // Reset custom inputs to sensible defaults when switching to a preset
+    if (key !== 'custom') {
+      // Keep customFrom/customTo as-is so user can switch back; the API only uses them when preset==='custom'
+    }
+  }
+
+  const handleApplyCustom = () => {
+    if (!customFrom || !customTo) {
+      toast.error('Lütfen başlangıç ve bitiş tarihlerini seçin')
+      return
+    }
+    if (new Date(customFrom) > new Date(customTo)) {
+      toast.error('Başlangıç tarihi bitiş tarihinden sonra olamaz')
+      return
+    }
+    setPreset('custom')
+    setAppliedFrom(customFrom)
+    setAppliedTo(customTo)
+    toast.success('Tarih aralığı uygulandı')
+  }
 
   if (isLoading || !data) {
     return (
       <div className="space-y-6">
         <PageHeader
           title="Raporlar"
-          description="Yillik finansal ozet ve performans analizi"
+          description="Dönemsel finansal özet ve performans analizi"
           icon={FileText}
         />
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+        <Skeleton className="h-16 w-full" />
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-28" />
           ))}
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
@@ -234,30 +452,21 @@ export function ReportsView() {
 
   const s = data.summary
   const c = data.charts
-
-  // Year-over-year change (net)
-  const thisYearNet = s.thisYearIncome - s.thisYearExpense
-  const lastYearNet = s.lastYearIncome - s.lastYearExpense
-  const changeVsLastYear =
-    lastYearNet !== 0 ? ((thisYearNet - lastYearNet) / Math.abs(lastYearNet)) * 100 : 0
+  const label = periodLabel(preset, appliedFrom, appliedTo, data.period)
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Raporlar"
-        description="Yıllık finansal özet, kategori analizi ve varlık performansı"
+        description="Dönemsel finansal özet, kategori analizi ve varlık performansı"
         icon={FileText}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => exportCsv(data)}
-              className="gap-2"
-            >
+            <Button variant="outline" onClick={() => exportCsv(data, label)} className="gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Excel'e Aktar
             </Button>
-            <Button onClick={() => window.print()} className="gap-2">
+            <Button onClick={() => exportPdf(data, label)} className="gap-2">
               <FileText className="h-4 w-4" />
               PDF İndir
             </Button>
@@ -265,40 +474,106 @@ export function ReportsView() {
         }
       />
 
-      {/* Summary stats */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <StatCard
-          title="Bu Yıl Gelir"
-          value={formatCurrency(s.thisYearIncome)}
+      {/* Date range selector */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="mr-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                Dönem:
+              </div>
+              {PRESETS.map((p) => (
+                <Button
+                  key={p.key}
+                  size="sm"
+                  variant={preset === p.key ? 'default' : 'outline'}
+                  onClick={() => handlePresetClick(p.key)}
+                  className="h-8 px-3 text-xs"
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-8 w-[150px] text-xs"
+                aria-label="Başlangıç tarihi"
+              />
+              <span className="text-xs text-muted-foreground">—</span>
+              <Input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-8 w-[150px] text-xs"
+                aria-label="Bitiş tarihi"
+              />
+              <Button
+                size="sm"
+                onClick={handleApplyCustom}
+                className="h-8 gap-1.5 text-xs"
+                variant={preset === 'custom' ? 'default' : 'outline'}
+              >
+                <Check className="h-3.5 w-3.5" />
+                Uygula
+              </Button>
+            </div>
+          </div>
+
+          {/* Active period indicator */}
+          <div className="mt-3 flex items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Aktif dönem:</span>
+            <Badge variant="secondary" className="text-xs">
+              {PRESETS.find((p) => p.key === preset)?.label || 'Özel'}
+            </Badge>
+            <span className="font-medium text-foreground">{label}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Compact KPI cards — 5 across on lg */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <CompactKpi
+          title="Dönem Geliri"
+          value={formatCurrency(s.periodIncome)}
           icon={TrendingUp}
           accent="emerald"
+          change={s.incomeChange}
+          changeLabel="önceki döneme göre"
         />
-        <StatCard
-          title="Bu Yıl Gider"
-          value={formatCurrency(s.thisYearExpense)}
+        <CompactKpi
+          title="Dönem Gideri"
+          value={formatCurrency(s.periodExpense)}
           icon={TrendingDown}
           accent="rose"
+          change={s.expenseChange}
+          changeLabel="önceki döneme göre"
         />
-        <StatCard
-          title="Yıllık Tasarruf"
-          value={formatCurrency(s.yearSavings)}
+        <CompactKpi
+          title="Dönem Tasarrufu"
+          value={formatCurrency(s.periodSavings)}
           icon={PiggyBank}
           accent="violet"
+          subtitle={s.periodSavings >= 0 ? 'Artıda' : 'Eksi'}
         />
-        <StatCard
+        <CompactKpi
           title="Tasarruf Oranı"
           value={`%${s.savingsRate.toFixed(1)}`}
           icon={Percent}
           accent="amber"
           subtitle={s.savingsRate >= 20 ? 'Hedefe uygun' : 'Hedef: %20'}
         />
-        <StatCard
-          title="Geçen Yıla Göre"
-          value={formatCurrency(thisYearNet)}
-          icon={History}
+        <CompactKpi
+          title="Net Değer"
+          value={formatCurrency(s.netWorth)}
+          icon={Wallet}
           accent="sky"
-          change={changeVsLastYear}
-          changeLabel="net değişim"
+          subtitle="Güncel servet"
         />
       </div>
 
@@ -306,7 +581,7 @@ export function ReportsView() {
       <div className="grid gap-4 lg:grid-cols-3">
         <ChartCard
           title="Aylık Trend"
-          description="Bu yıl aylık gelir, gider ve net"
+          description="Dönem boyunca gelir, gider ve net"
           icon={TrendingUp}
           className="lg:col-span-2"
         >
@@ -344,7 +619,7 @@ export function ReportsView() {
 
         <ChartCard
           title="Gelir Kategorileri"
-          description="Bu yılki dağılım"
+          description="Dönem dağılımı"
           icon={TrendingUp}
         >
           <ResponsiveContainer width="100%" height={260}>
@@ -373,7 +648,7 @@ export function ReportsView() {
               />
             </PieChart>
           </ResponsiveContainer>
-          <div className="mt-2 flex flex-wrap gap-2 justify-center">
+          <div className="mt-2 flex flex-wrap gap-2 justify-center max-h-20 overflow-y-auto">
             {c.incomeByCategory.map((a, i) => (
               <div key={a.name} className="flex items-center gap-1.5 text-xs">
                 <span
@@ -391,7 +666,7 @@ export function ReportsView() {
       <div className="grid gap-4 lg:grid-cols-3">
         <ChartCard
           title="Gider Kategorileri"
-          description="Bu yılki dağılım"
+          description="Dönem dağılımı"
           icon={TrendingDown}
         >
           <ResponsiveContainer width="100%" height={260}>
@@ -609,14 +884,14 @@ export function ReportsView() {
                 Toplam Maliyet
               </div>
               <p className="mt-1 text-2xl font-bold">{formatCurrency(s.vehicleTotalCost)}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">bu yıl</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">dönem boyunca</p>
             </div>
           </CardContent>
         </Card>
 
         <ChartCard
           title="Araç Bazında Yakıt"
-          description="Bu yılki yakıt harcaması"
+          description="Dönemdeki yakıt harcaması"
           icon={Fuel}
           className="lg:col-span-2"
         >
@@ -667,6 +942,80 @@ export function ReportsView() {
         </p>
       </div>
     </div>
+  )
+}
+
+/** Compact KPI card — fits 5-across on lg without overflow. */
+function CompactKpi({
+  title,
+  value,
+  icon: Icon,
+  accent = 'emerald',
+  change,
+  changeLabel,
+  subtitle,
+}: {
+  title: string
+  value: string
+  icon: typeof Wallet
+  accent?: 'emerald' | 'violet' | 'amber' | 'rose' | 'sky'
+  change?: number
+  changeLabel?: string
+  subtitle?: string
+}) {
+  const ACCENTS = {
+    emerald: { bg: 'oklch(0.68 0.17 155 / 0.12)', text: 'oklch(0.7 0.17 155)', ring: 'oklch(0.68 0.17 155 / 0.2)' },
+    violet: { bg: 'oklch(0.65 0.18 280 / 0.12)', text: 'oklch(0.7 0.18 280)', ring: 'oklch(0.65 0.18 280 / 0.2)' },
+    amber: { bg: 'oklch(0.75 0.18 65 / 0.12)', text: 'oklch(0.78 0.18 65)', ring: 'oklch(0.75 0.18 65 / 0.2)' },
+    rose: { bg: 'oklch(0.65 0.2 25 / 0.12)', text: 'oklch(0.7 0.2 25)', ring: 'oklch(0.65 0.2 25 / 0.2)' },
+    sky: { bg: 'oklch(0.6 0.15 200 / 0.12)', text: 'oklch(0.65 0.15 200)', ring: 'oklch(0.6 0.15 200 / 0.2)' },
+  }
+  const a = ACCENTS[accent]
+  const positive = (change ?? 0) >= 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+    >
+      <Card className="relative overflow-hidden p-4 hover:shadow-md transition-shadow">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              {title}
+            </p>
+            <p className="mt-1.5 truncate text-lg font-bold tracking-tight">{value}</p>
+            {subtitle && (
+              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{subtitle}</p>
+            )}
+            {typeof change === 'number' && (
+              <div className="mt-1.5 flex items-center gap-1">
+                <span
+                  className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-semibold ${
+                    positive
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {positive ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                  {Math.abs(change).toFixed(1)}%
+                </span>
+                {changeLabel && (
+                  <span className="truncate text-[10px] text-muted-foreground">{changeLabel}</span>
+                )}
+              </div>
+            )}
+          </div>
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+            style={{ background: a.bg, color: a.text, boxShadow: `inset 0 0 0 1px ${a.ring}` }}
+          >
+            <Icon className="h-4 w-4" />
+          </div>
+        </div>
+      </Card>
+    </motion.div>
   )
 }
 

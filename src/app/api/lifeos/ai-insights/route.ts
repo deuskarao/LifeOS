@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { ok, fail, readBody } from '@/lib/lifeos'
-import { getStore } from '@/lib/store'
+import { getStore, getSessionUser } from '@/lib/store'
+import { db } from '@/lib/db'
 import ZAI from 'z-ai-web-dev-sdk'
 
 export const dynamic = 'force-dynamic'
@@ -95,6 +96,41 @@ export async function POST(req: NextRequest) {
   const question = body?.question
 
   try {
+    const sessionUser = await getSessionUser()
+    if (!sessionUser) return fail('Yetkisiz', 401)
+
+    // Hak kontrolü — demo hariç
+    if (sessionUser.role !== 'demo') {
+      const user = await db.user.findUnique({ where: { id: sessionUser.id } })
+      if (!user) return fail('Kullanıcı bulunamadı', 404)
+
+      const isPremium = user.level === 'premium'
+      const limit = isPremium ? 5 : 1
+
+      // Günlük sıfırlama
+      const now = new Date()
+      let usedToday = user.aiQuestionsUsed
+      if (user.aiQuestionsResetAt) {
+        const hoursSinceReset = (now.getTime() - user.aiQuestionsResetAt.getTime()) / (1000 * 60 * 60)
+        if (hoursSinceReset >= 24) usedToday = 0
+      } else {
+        usedToday = 0
+      }
+
+      if (usedToday >= limit) {
+        return fail(`Günlük AI soru hakkınızı doldurdunuz (${usedToday}/${limit}). Premium üyelikle günde 5 hak kazanabilirsiniz.`, 429)
+      }
+
+      // Hakkı artır
+      await db.user.update({
+        where: { id: user.id },
+        data: {
+          aiQuestionsUsed: usedToday + 1,
+          aiQuestionsResetAt: user.aiQuestionsResetAt && usedToday > 0 ? undefined : now,
+        },
+      })
+    }
+
     const ctx = await buildContext()
 
     const zai = await ZAI.create()

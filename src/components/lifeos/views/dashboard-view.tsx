@@ -28,6 +28,9 @@ import {
   Calendar,
   AlertCircle,
   PiggyBank,
+  Crown,
+  Check,
+  Minus,
 } from 'lucide-react'
 import {
   Area,
@@ -63,6 +66,7 @@ interface DashboardData {
     activeContracts: number
     monthlyRentIncome: number
     vehicleCount: number
+    wealthClass?: { label: string; short: string; description: string; color: string; icon: string }
   }
   charts: {
     months: { month: string; income: number; expense: number }[]
@@ -162,6 +166,9 @@ export function DashboardView() {
         <MiniStat icon={Home} label="Emlak Değeri" value={k.propertyValue} color="violet" onClick={() => set('rental')} />
         <MiniStat icon={CreditCard} label="Toplam Borç" value={k.cardDebt + k.loanDebt} color="rose" onClick={() => set('credit-cards')} />
       </div>
+
+      {/* Wealth class banner */}
+      {k.wealthClass && <WealthClassBanner wealthClass={k.wealthClass} netWorth={k.netWorth} />}
 
       {/* Charts row 1 */}
       <div className="grid gap-4 lg:grid-cols-3">
@@ -485,5 +492,56 @@ function MiniStat({
         <p className="truncate text-base font-bold">{formatCurrency(value)}</p>
       </div>
     </button>
+  )
+}
+
+function WealthClassBanner({
+  wealthClass,
+  netWorth,
+}: {
+  wealthClass: { label: string; short: string; description: string; color: string; icon: string }
+  netWorth: number
+}) {
+  const colorMap: Record<string, { bg: string; text: string; ring: string; gradient: string }> = {
+    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500/30', gradient: 'from-emerald-500/20 to-emerald-500/5' },
+    violet: { bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', ring: 'ring-violet-500/30', gradient: 'from-violet-500/20 to-violet-500/5' },
+    sky: { bg: 'bg-sky-500/10', text: 'text-sky-600 dark:text-sky-400', ring: 'ring-sky-500/30', gradient: 'from-sky-500/20 to-sky-500/5' },
+    amber: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', ring: 'ring-amber-500/30', gradient: 'from-amber-500/20 to-amber-500/5' },
+    rose: { bg: 'bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', ring: 'ring-rose-500/30', gradient: 'from-rose-500/20 to-rose-500/5' },
+  }
+  const c = colorMap[wealthClass.color] || colorMap.sky
+
+  const icons: Record<string, typeof Crown> = {
+    crown: Crown,
+    'trending-up': TrendingUp,
+    'trending-down': TrendingDown,
+    check: Check,
+    minus: Minus,
+  }
+  const Icon = icons[wealthClass.icon] || Crown
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`relative overflow-hidden rounded-xl border bg-gradient-to-r ${c.gradient} p-5`}
+    >
+      <div className="flex items-center gap-4">
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${c.bg} ${c.text} ring-1 ${c.ring}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Finansal Sınıfınız</p>
+            <span className={`text-sm font-bold ${c.text}`}>{wealthClass.label}</span>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">{wealthClass.description}</p>
+        </div>
+        <div className="hidden sm:block text-right">
+          <p className="text-[10px] uppercase text-muted-foreground">Net Servet</p>
+          <p className="text-lg font-bold">{formatCurrency(netWorth)}</p>
+        </div>
+      </div>
+    </motion.div>
   )
 }

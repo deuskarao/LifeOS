@@ -239,3 +239,149 @@ Stage Summary:
 - Admin panel: kullanıcı yönetimi + sistem istatistikleri
 - Demo verileri DB'ye YAZILMIYOR — server-side memory'de, çıkışta otomatik temizleniyor
 - NextAuth JWT session, role + id token'da taşınıyor
+
+---
+Task ID: reports-rewrite
+Agent: full-stack-developer
+Task: Rewrite reports view with date range + real PDF export + KPI fix
+
+Work Log:
+- Read worklog.md for project context, the new /api/lifeos/reports route (now supports ?preset= and ?from=&to=, returns period + summary with periodIncome/prevIncome/periodExpense/prevExpense/periodSavings/savingsRate/incomeChange/expenseChange), the current reports-view.tsx (window.print() based, old field names like thisYearIncome), dashboard-view.tsx (style reference), and StatCard/PageHeader/ChartCard shared components.
+- Verified jsPDF + jspdf-autotable are installed in node_modules.
+- Completely rewrote /home/z/my-project/src/components/lifeos/views/reports-view.tsx (~830 lines):
+  • New ReportsData interface matches the new API exactly: period{from,to,prevFrom,prevTo}, summary{periodIncome, prevIncome, periodExpense, prevExpense, periodSavings, savingsRate, incomeChange, expenseChange, netWorth, bankTotal, assetTotal, propertyTotal, loanDebt, cardDebt, fuelTotal, serviceTotal, vehicleTotalCost}, charts{monthlyTrend, incomeByCategory, expenseByCategory, fuelByVehicle, netWorthBreakdown}, propertyStats[].
+  • Date range selector at top (Card with two rows): preset buttons (Bu Ay, Son 3 Ay, Son 6 Ay, Bu Yıl, Geçen Yıl, Tümü) + custom from/to date inputs with "Uygula" button. State separated into input (customFrom/customTo) and applied (appliedFrom/appliedTo) so user types then clicks Apply. Validates: both dates required, from ≤ to (else toast error).
+  • useQuery queryKey includes [preset, appliedFrom, appliedTo] → refetches automatically on any change. Query string built via buildQuery(): ?preset=X or ?from=YYYY-MM-DD&to=YYYY-MM-DD when preset==='custom'.
+  • Active period indicator below selector: Badge with preset label + formatted date range (uses formatDate).
+  • Fixed KPI cards layout: grid-cols-2 md:grid-cols-3 lg:grid-cols-5 — built custom CompactKpi component (smaller than StatCard) with text-[10px] title, text-lg value (not 2xl), truncate on both, h-9 icon box (vs h-11), 10px change badge. Cards: Dönem Geliri (with incomeChange badge), Dönem Gideri (with expenseChange badge), Dönem Tasarrufu, Tasarruf Oranı %, Net Değer. No overflow on lg.
+  • Real PDF export with jsPDF + jspdf-autotable: title "LifeOS Finansal Rapor", period label + creation date, then 5 autoTable sections — Özet (emerald header), Gider Kategorileri (rose), Gelir Kategorileri (sky), Aylık Trend (violet), Emlak Performansı (violet, only if data), Araç Yakıt Maliyeti (amber, only if data) + plain summary table. Footer page numbers on every page. Saves as lifeos-rapor-YYYY-MM-DD.pdf. Wrapped in try/catch with toast success/error.
+  • Kept Excel CSV export — adapted field names to new shape (periodIncome/periodExpense/periodSavings/incomeChange/expenseChange/prevIncome/prevExpense etc.) and added Dönem + label to header row.
+  • Charts adapted to new data shape: Monthly trend grouped BarChart (income/expense/net), Income PieChart donut, Expense PieChart donut, Net Worth horizontal BarChart with ReferenceLine at x=0 and color-coded cells, Property performance Table (motion.tr staggered), Vehicle cost Card with fuel/service/total summary + fuelByVehicle BarChart.
+  • Loading skeleton: Card skeleton for date selector + 5 KPI skeletons in the new grid + chart skeletons.
+  • framer-motion: CompactKpi cards fade-in y:10, property rows stagger 0.04s delay each.
+  • Turkish labels throughout, semantic colors, dark-theme compatible (oklch accent colors, dark: variants), responsive (mobile-first 2 cols → 3 → 5).
+  • Removed unused StatCard import (built custom CompactKpi instead).
+
+Stage Summary:
+- Files modified:
+  - src/components/lifeos/views/reports-view.tsx (full rewrite, ~830 lines)
+- Features delivered:
+  - Date range selector: 6 presets + custom from/to with Apply button, validated, query auto-refetches via queryKey dependency.
+  - Fixed KPI cards: 5-across compact grid on lg, no overflow, smaller text (lg value, xs title), change badges from incomeChange/expenseChange percentages.
+  - Real PDF export: jsPDF + jspdf-autotable with 6 sections (summary, expense cats, income cats, monthly trend, property perf, vehicle cost), footer page numbers, color-coded section headers, error-safe with toast.
+  - CSV export adapted to new field names + label.
+  - All charts adapted to new data shape (monthlyTrend, incomeByCategory, expenseByCategory, fuelByVehicle, netWorthBreakdown, propertyStats).
+- Lint: 0 errors on the rewritten file (clean).
+- Dev server log confirms: GET /api/lifeos/reports?preset=this-year 200, GET /api/lifeos/reports?preset=1m 200 — date range filtering working end-to-end.
+- Named export ReportsView preserved.
+
+---
+Task ID: settings-membership
+Agent: full-stack-developer
+Task: Add membership tab to settings with plan switching
+
+Work Log:
+- Read worklog.md (project history), settings-view.tsx (current 5-tab impl), PUT /api/lifeos/users/[id]/level route (level change with demo guard), GET /api/lifeos/ai-quota route (returns level/canUseAi/usedToday/limit/remaining/isPremium), lib/lifeos.ts (getWealthClass returns {label,short,description,color,icon}), lib/api-client.ts (api.get/put + useCrud), dashboard route (kpis.netWorth + kpis.wealthClass), auth.ts (session.user has id/role/level via JWT callback).
+- Updated imports in settings-view.tsx: added useSession (next-auth/react), useQuery/useMutation/useQueryClient (@tanstack/react-query), getWealthClass/formatCompact (lib/lifeos), Skeleton/Progress (shadcn/ui), new lucide icons (Crown, Sparkles, Lock, TrendingUp, TrendingDown, Minus, Shield, X).
+- Inserted new TabsTrigger value="membership" with Crown icon between Bildirimler and Veri (6 tabs total now: Profil/Görünüm/Para Birimi/Bildirimler/Üyelik/Veri). Added matching TabsContent mapping to <MembershipTab />.
+- Implemented MembershipTab: uses useSession() for user id/role/level; useQuery(['ai-quota']) for quota; useQuery(['dashboard']) for netWorth + wealthClass; useMutation for PUT /api/lifeos/users/{id}/level. onSuccess invalidates ['ai-quota'], shows Turkish toast (Premium üyeliğe yükseltildiniz! / Standart üyeliğe geçildi), and reloads page after 1s so JWT session refreshes. Demo/admin → always premium, canChangePlan=false.
+- Current plan summary card: top accent bar (violet→emerald gradient for premium, muted for standard), plan badge + member-since, 3 stat tiles (Bugün AI kullanımı, Kalan hak, Durum) with Skeleton during loading, Progress bar with "Bugün: X/Y hak kullanıldı" label.
+- Demo notice card (violet-tinted, Sparkles icon) when role==='demo' explaining premium features are active but data resets on logout.
+- WealthClassCard: for premium/demo → shows actual class from dashboard.kpis.wealthClass (color-coded border + icon tile, label, net-worth compact badge, description). For standard → blurred preview overlay with Lock icon and "Premium'a Geç" upgrade CTA button that triggers levelMut.mutate('premium').
+- WealthClassIcon helper maps icon string ('crown'/'trending-up'/'trending-down'/'check'/'minus') from getWealthClass to lucide components. WEALTH_COLOR_BORDER and WEALTH_ICON_COLOR maps translate color strings to tailwind class sets.
+- Two PlanCards side-by-side (lg:grid-cols-2, stack on mobile): Standart (muted border, Ücretsiz/her zaman) and Premium (violet gradient top bar, ₺49/ay, ÖNERİLEN badge with Sparkles when not current). Each card has feature list with Check (included, emerald/primary) or X (not included, muted + line-through) icons. Current plan shows disabled "Mevcut Plan" button; non-current shows Yükselt/Düşür button (disabled when demo/admin with hint text). framer-motion initial/whileHover transitions.
+- Turkish labels throughout, responsive (mobile-first, sm:/lg: breakpoints), existing Card/Button/Badge/Skeleton/Progress components reused. SettingsView named export preserved, existing 5 tabs untouched.
+- bun run lint: 0 errors on the touched file. Dev server compiles cleanly (verified dev.log — /api/lifeos/ai-quota and /api/lifeos/dashboard both return 200).
+
+Stage Summary:
+- Files modified: src/components/lifeos/views/settings-view.tsx (+~600 lines: new MembershipTab/PlanCard/WealthClassCard/WealthClassIcon + supporting types and constants), worklog.md (this entry).
+- Features: 6-tab Settings (Üyelik added), live AI quota display, plan switching via PUT /api/lifeos/users/[id]/level, demo/admin guards (always premium, can't change), wealth-class reveal for premium users + locked CTA for standard users, framer-motion animated cards, Turkish labels, premium violet/emerald gradient styling.
+- No breaking changes to Profil/Görünüm/Para Birimi/Bildirimler/Veri tabs or SettingsView export.
+
+---
+Task ID: admin-rewrite
+Agent: full-stack-developer
+Task: Rewrite admin view with user CRUD + level management
+
+Work Log:
+- Tüm bağlam dosyaları okundu: worklog.md, /api/lifeos/admin (system stats), /api/lifeos/admin/users (GET/POST), /api/lifeos/admin/users/[id] (PUT/DELETE), /api/lifeos/users/[id]/level (PUT level + ?action=reset-quota), mevcut admin-view.tsx, api-client.ts, tüm shared component'ler (stat-card, page-header, empty-state, confirm-dialog, form-dialog, chart-card), shadcn/ui primitives (tabs, table, switch, select, dropdown-menu, badge, avatar).
+- ai-insights/route.ts incelendi: premium=5/gün, standard=1/gün, demo=sınırsız. Backend 24h reset kuralı client-side'a taşındı (getEffectiveAiUsed helper).
+- mevcut topbar.tsx incelendi: useSession() → session.user.id (JWT token'dan geliyor), self-delete kontrolü için kullanıldı.
+- `src/components/lifeos/views/admin-view.tsx` tamamen yeniden yazıldı (~770 satır):
+  • Tabs component ile 2 sekme: "Genel Bakış" + "Kullanıcılar"
+  • OverviewTab: mevcut içerik korundu — 4 StatCard (Toplam Kullanıcı/Net Değer/Kayıt/Borç), 4 MiniStat (Banka/Yatırımlar/Gelir/Gider), BarChart kaynak dağılımı, 4 ActivityCard son 7 gün, emerald sistem durumu kartı. /api/lifeos/admin'den çekiyor.
+  • UsersTab: /api/lifeos/admin/users'dan AdminUser[] çekiyor. Üstte "Kullanıcı Ekle" butonu + kullanıcı sayısı.
+  • Table: 7 kolon — Kullanıcı (avatar initials + name + email + SİZ badge), Rol (emerald/violet/sky badge), Seviye (amber PREMIUM / muted STANDART badge + Switch toggle), AI Kullanım (used/limit + renkli progress bar: yeşil<60%, amber<100%, rose=100%), Kayıt Sayısı (toplam + b/k/v breakdown), Kayıt Tarihi, Aksiyonlar (DropdownMenu).
+  • Switch: checked=premium, demo kullanıcıda disabled, onCheckedChange → levelMut.mutate({id, level}).
+  • DropdownMenu: Düzenle, AI Haklarını Sıfırla (demo'da disabled), separator, Sil (self'te disabled, destructive variant).
+  • FormDialog: name/email/password/role select/level select. Edit modunda password opsiyonel (placeholder "••••••"). Validasyon: name+email zorunlu, password create modunda zorunlu ve >=6 karakter, edit modunda boş ise değiştirilmez.
+  • ConfirmDialog: delete için, kullanıcı adı + tüm veriler silinecek uyarısı.
+  • 5 mutation: createMut (POST), updateMut (PUT), deleteMut (DELETE), levelMut (PUT /level), resetQuotaMut (PUT /level?action=reset-quota). Hepsi invalidateAll() → ['admin-users'] + ['admin'].
+  • sonner toast: başarı/hata bildirimleri tüm mutation'larda.
+  • framer-motion: motion.tr ile satır stagger (delay i*0.04, opacity+y animasyonu).
+  • Responsive: Table container `overflow-x-auto` (mobile yatay scroll), header+buton flex-col sm:flex-row.
+  • Avatar initials helper, getEffectiveAiUsed helper (24h reset kuralı).
+- Lint temiz (exit code 0, 0 hata/uyarı).
+- Sadece admin-view.tsx ve worklog.md modifiye edildi. Başka dosyaya dokunulmadı.
+
+Stage Summary:
+- Files modified:
+  - `src/components/lifeos/views/admin-view.tsx` (tamamen yeniden yazıldı, ~770 satır)
+  - `worklog.md` (bu entry append edildi)
+  - `agent-ctx/admin-rewrite-full-stack-developer.md` (agent work record)
+- Features delivered:
+  - 2 tablı admin panel: Genel Bakış (mevcut sistem istatistikleri + chart + activity + status) ve Kullanıcılar (yeni CRUD tablosu)
+  - Full user CRUD: create (FormDialog), edit (FormDialog), delete (ConfirmDialog), 5 mutation ile
+  - Level management: Switch toggle standard↔premium (demo'da disabled), backend PUT /api/lifeos/users/[id]/level çağrısı
+  - AI quota reset: dropdown'dan "AI Haklarını Sıfırla" → PUT /api/lifeos/users/[id]/level?action=reset-quota
+  - AI kullanım görselleştirme: used/limit (3/5 veya 0/1) + renkli progress bar (yeşil/amber/rose), demo için "Sınırsız"
+  - Self-delete protection: useSession ile currentUserId, dropdown'da Sil disabled + "SİZ" badge
+  - Role badges: admin=emerald "ADMIN", demo=violet "DEMO", user=sky "USER"
+  - Level badges: premium=amber Crown "PREMIUM", standard=muted "STANDART"
+  - TanStack Query: queryClient invalidate ['admin-users'] + ['admin'] tüm mutation'larda
+  - sonner toast bildirimleri (başarı/hata)
+  - framer-motion stagger (motion.tr, 40ms delay)
+  - Responsive table (overflow-x-auto), dark theme uyumlu, Türkçe etiketler
+  - AdminView named export korundu
+
+---
+Task ID: 10
+Agent: main
+Task: Major UX upgrade — login, auth, admin, AI gating, dashboard fix, reports, settings, PDF
+
+Work Log:
+- Prisma schema: User'a level, aiQuestionsUsed, aiQuestionsResetAt eklendi + db:push
+- 3 kullanıcı seviyesi: admin/premium, demo/premium, user/standard
+- NextAuth: GoogleProvider eklendi (env var gerektirir), jwt callback level+role DB'den 10sn'de bir yeniler, trigger=update ile manuel yenileme
+- Register API + login page redesign: Google + Demo butonu, Kayıt Ol formu, footer 2026
+- AI erişim kontrolü: ai-quota API (GET durum), ai-insights API (POST hak kontrolü + artırma)
+  • Standart: 1 hak/gün, Premium: 5 hak/gün, Demo: sınırsız
+  • 24 saatte bir otomatik sıfırlama
+- AI view: quota banner, blocked durumda upgrade promptu, premium/demo için "sınırsız" badge
+- Sidebar: AI Asistan sadece premium/demo/admin'e görünür, standart user için "Premium'a Yükselt" banner
+- Dashboard fix: monthlyNet artık BU AYın gelir-gider farkı (önceki yıllık toplamdı)
+- Wealth class banner: getWealthClass() — Borçlu/Alt/Alt-Orta/Orta/Üst-Orta/Üst sınıf (Türkiye ekonomik sınıflandırması)
+- Sidebar sticky (position: sticky, h-screen), logo tıklayınca dashboard'a gider
+- Reports: tarih aralığı seçici (6 preset + custom from/to), KPI cardlar compact (5'li grid), gerçek PDF export (jsPDF + autotable, 6 tablo)
+- Admin panel: 2 tab (Genel Bakış + Kullanıcılar), user CRUD, level toggle (switch), AI quota reset, self-delete koruması
+- Settings: Üyelik tab (6 tab toplam), plan kartları (Standart/Premium), wealth class preview (premium'da açık, standart'ta blurred), level değişince session update + reload
+- API rotaları: admin/users (GET/POST), admin/users/[id] (PUT/DELETE), users/[id]/level (PUT + ?action=reset-quota)
+
+Test (Agent Browser):
+- Login: Google/Demo butonu + Kayıt Ol linki + footer 2026 ✓
+- Demo login: dashboard açıldı, "Orta Sınıf" wealth class, aylık net ₺30.302 (bu ay) ✓
+- Standart user login: AI Asistan gizli, "Yükselt" banner ✓
+- Premium'a yükseltme: DB'ye yazıldı, reload sonrası AI Asistan göründü ✓
+- Admin login: Admin Panel → Kullanıcılar tab, 3 kullanıcı listesi, level badge'leri, AI kullanım sayaçları ✓
+- Reports: 6 tarih preset + custom range, PDF export "PDF raporu indirildi" toast ✓
+- Sidebar: sticky (position: sticky), logo tıklayınca dashboard'a döndü ✓
+- Wealth class: admin için "Üst Sınıf" (20M+), demo için "Orta Sınıf" (1-5M) ✓
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- 3 katmanlı kullanıcı sistemi: admin (DB tüm veri), demo (memory, logout'ta sıfırlanır), user (DB kendi verisi)
+- 2 üyelik seviyesi: standard (1 AI hak/gün), premium (5 AI hak/gün + AI Asistan + wealth class)
+- Admin panel: tam kullanıcı CRUD + seviye yönetimi
+- Reports: tarih aralığı + gerçek PDF export
+- Dashboard: aylık net düzeltildi + finansal sınıf banner
+- Sidebar: sticky + logo navigasyon

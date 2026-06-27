@@ -1,19 +1,50 @@
+import { NextRequest } from 'next/server'
 import { ok, fail } from '@/lib/lifeos'
 import { getStore } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
-/** Detaylı rapor verisi - yıllık gelir/gider, kategori trendleri, varlık performansı. */
-export async function GET() {
+/** Detaylı rapor verisi - tarih aralığı destekler. */
+export async function GET(req: NextRequest) {
   try {
     const { store, user } = await getStore()
     const uid = user.role === 'admin' ? 'admin-all' : user.id
 
-    const now = new Date()
-    const yearStart = new Date(now.getFullYear(), 0, 1)
-    const lastYearStart = new Date(now.getFullYear() - 1, 0, 1)
-    const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
+    const url = new URL(req.url)
+    const fromParam = url.searchParams.get('from') // yyyy-mm-dd
+    const toParam = url.searchParams.get('to') // yyyy-mm-dd
+    const preset = url.searchParams.get('preset') // this-year, last-year, 6m, 3m, 1m, all
 
+    const now = new Date()
+    let startDate: Date
+    let endDate: Date = now
+
+    if (fromParam && toParam) {
+      startDate = new Date(fromParam)
+      endDate = new Date(toParam)
+      endDate.setHours(23, 59, 59, 999)
+    } else if (preset === 'last-year') {
+      startDate = new Date(now.getFullYear() - 1, 0, 1)
+      endDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
+    } else if (preset === '6m') {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+    } else if (preset === '3m') {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+    } else if (preset === '1m') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+    } else if (preset === 'all') {
+      startDate = new Date(2000, 0, 1)
+    } else {
+      // default: this year
+      startDate = new Date(now.getFullYear(), 0, 1)
+    }
+
+    // Karşılaştırma için önceki dönem (aynı uzunlukta)
+    const periodMs = endDate.getTime() - startDate.getTime()
+    const prevEndDate = new Date(startDate.getTime() - 1)
+    const prevStartDate = new Date(prevEndDate.getTime() - periodMs)
+
+    // Tüm veriyi çek (geniş aralıkta, sonra filtrele)
     const [banks, cards, loans, assets, properties, vehicles, incomes, expenses, fuel, services] = await Promise.all([
       store.list('bank-accounts', uid),
       store.list('credit-cards', uid),
@@ -21,34 +52,59 @@ export async function GET() {
       store.list('assets', uid),
       store.list('properties', uid),
       store.list('vehicles', uid),
-      store.list('income', uid, { months: 18 }),
-      store.list('expenses', uid, { months: 18 }),
+      store.list('income', uid, { months: 36 }),
+      store.list('expenses', uid, { months: 36 }),
       store.list('fuel', uid),
       store.list('services', uid),
     ])
 
-    // Aylık 12 aylık trend (bu yıl)
-    const monthlyTrend: { month: string; income: number; expense: number; net: number }[] = []
-    const monthLabels = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
-    for (let m = 0; m < 12; m++) {
-      const start = new Date(now.getFullYear(), m, 1)
-      const end = new Date(now.getFullYear(), m + 1, 1)
-      const inc = incomes.filter((x: any) => new Date(x.date) >= start && new Date(x.date) < end).reduce((s: number, x: any) => s + x.amount, 0)
-      const exp = expenses.filter((x: any) => new Date(x.date) >= start && new Date(x.date) < end).reduce((s: number, x: any) => s + x.amount, 0)
-      monthlyTrend.push({ month: monthLabels[m], income: inc, expense: exp, net: inc - exp })
+    // Tarih aralığına göre filtrele
+    const inRange = (d: any) => {
+      const date = new Date(d.date)
+      return date >= startDate && date <= endDate
+    }
+    const inPrevRange = (d: any) => {
+      const date = new Date(d.date)
+      return date >= prevStartDate && date <= prevEndDate
     }
 
-    const thisYearIncome = incomes.filter((x: any) => new Date(x.date) >= yearStart).reduce((s: number, x: any) => s + x.amount, 0)
-    const lastYearIncome = incomes.filter((x: any) => new Date(x.date) >= lastYearStart && new Date(x.date) <= lastYearEnd).reduce((s: number, x: any) => s + x.amount, 0)
-    const thisYearExpense = expenses.filter((x: any) => new Date(x.date) >= yearStart).reduce((s: number, x: any) => s + x.amount, 0)
-    const lastYearExpense = expenses.filter((x: any) => new Date(x.date) >= lastYearStart && new Date(x.date) <= lastYearEnd).reduce((s: number, x: any) => s + x.amount, 0)
+    const periodIncomes = incomes.filter(inRange)
+    const periodExpenses = expenses.filter(inRange)
+    const prevIncomes = incomes.filter(inPrevRange)
+    const prevExpenses = expenses.filter(inPrevRange)
+    const periodFuel = fuel.filter(inRange)
+    const periodServices = services.filter(inRange)
 
-    const incomeByCategory = incomes
-      .filter((x: any) => new Date(x.date) >= yearStart)
+    // Aylık trend (seçilen dönem boyunca)
+    const monthlyTrend: { month: string; income: number; expense: number; net: number }[] = []
+    const monthLabels = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+    const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1)
+    while (cursor <= endDate) {
+      const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+      const inc = incomes.filter((x: any) => {
+        const d = new Date(x.date)
+        return d >= cursor && d < monthEnd
+      }).reduce((s: number, x: any) => s + x.amount, 0)
+      const exp = expenses.filter((x: any) => {
+        const d = new Date(x.date)
+        return d >= cursor && d < monthEnd
+      }).reduce((s: number, x: any) => s + x.amount, 0)
+      monthlyTrend.push({
+        month: `${monthLabels[cursor.getMonth()]} ${cursor.getFullYear().toString().slice(-2)}`,
+        income: inc, expense: exp, net: inc - exp,
+      })
+      cursor.setMonth(cursor.getMonth() + 1)
+    }
+
+    const periodIncome = periodIncomes.reduce((s: number, x: any) => s + x.amount, 0)
+    const prevIncome = prevIncomes.reduce((s: number, x: any) => s + x.amount, 0)
+    const periodExpense = periodExpenses.reduce((s: number, x: any) => s + x.amount, 0)
+    const prevExpense = prevExpenses.reduce((s: number, x: any) => s + x.amount, 0)
+
+    const incomeByCategory = periodIncomes
       .reduce<Record<string, number>>((acc, x: any) => { acc[x.category] = (acc[x.category] || 0) + x.amount; return acc }, {})
 
-    const expenseByCategory = expenses
-      .filter((x: any) => new Date(x.date) >= yearStart)
+    const expenseByCategory = periodExpenses
       .reduce<Record<string, number>>((acc, x: any) => { acc[x.category] = (acc[x.category] || 0) + x.amount; return acc }, {})
 
     const bankTotal = banks.reduce((s: number, b: any) => s + b.balance, 0)
@@ -57,9 +113,9 @@ export async function GET() {
     const loanDebt = loans.reduce((s: number, l: any) => s + l.remainingAmount, 0)
     const cardDebt = cards.reduce((s: number, c: any) => s + c.balance, 0)
 
-    const fuelTotal = fuel.reduce((s: number, f: any) => s + f.amount, 0)
-    const serviceTotal = services.reduce((s: number, x: any) => s + x.amount, 0)
-    const fuelByVehicle = fuel.reduce<Record<string, number>>((acc, f: any) => {
+    const fuelTotal = periodFuel.reduce((s: number, f: any) => s + f.amount, 0)
+    const serviceTotal = periodServices.reduce((s: number, x: any) => s + x.amount, 0)
+    const fuelByVehicle = periodFuel.reduce<Record<string, number>>((acc, f: any) => {
       const key = vehicles.find((v: any) => v.id === f.vehicleId)?.name || 'Bilinmiyor'
       acc[key] = (acc[key] || 0) + f.amount
       return acc
@@ -78,11 +134,22 @@ export async function GET() {
       }
     })
 
+    // Değişim yüzdeleri
+    const incomeChange = prevIncome > 0 ? ((periodIncome - prevIncome) / prevIncome) * 100 : 0
+    const expenseChange = prevExpense > 0 ? ((periodExpense - prevExpense) / prevExpense) * 100 : 0
+
     return ok({
+      period: {
+        from: startDate.toISOString(),
+        to: endDate.toISOString(),
+        prevFrom: prevStartDate.toISOString(),
+        prevTo: prevEndDate.toISOString(),
+      },
       summary: {
-        thisYearIncome, lastYearIncome, thisYearExpense, lastYearExpense,
-        yearSavings: thisYearIncome - thisYearExpense,
-        savingsRate: thisYearIncome > 0 ? ((thisYearIncome - thisYearExpense) / thisYearIncome) * 100 : 0,
+        periodIncome, prevIncome, periodExpense, prevExpense,
+        periodSavings: periodIncome - periodExpense,
+        savingsRate: periodIncome > 0 ? ((periodIncome - periodExpense) / periodIncome) * 100 : 0,
+        incomeChange, expenseChange,
         netWorth: bankTotal + assetTotal + propertyTotal - loanDebt - cardDebt,
         bankTotal, assetTotal, propertyTotal, loanDebt, cardDebt,
         fuelTotal, serviceTotal, vehicleTotalCost: fuelTotal + serviceTotal,

@@ -18,6 +18,9 @@ model User {
   name      String
   password  String
   role      String   @default("user") // admin | demo | user
+  level     String   @default("standard") // standard | premium
+  aiQuestionsUsed    Int      @default(0)
+  aiQuestionsResetAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

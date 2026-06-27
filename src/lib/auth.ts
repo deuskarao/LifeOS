@@ -7,7 +7,7 @@ import { clearDemoStore } from './store'
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 gün
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: '/login',
@@ -35,15 +35,65 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          level: user.level,
         } as any
       },
     }),
+    // Google OAuth — GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET env var gerekir
+    // .env.example'de talimat var
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [(() => {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const GoogleProvider = require('next-auth/providers/google').default
+          return GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+            allowDangerousEmailAccountLinking: true,
+          })
+        })()]
+      : []),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = (user as any).id
         token.role = (user as any).role
+        token.level = (user as any).level
+        token.levelCheckedAt = Date.now()
+      }
+      // Level değişikliği sonrası session yenileme — her 10 saniyede bir DB'den kontrol
+      // (upgrade/downgrade anında yansıması için)
+      const lastCheck = (token.levelCheckedAt as number) || 0
+      if (Date.now() - lastCheck > 10_000 && token.id) {
+        try {
+          const dbUser = await db.user.findUnique({
+            where: { id: token.id as string },
+            select: { level: true, role: true },
+          })
+          if (dbUser) {
+            token.level = dbUser.level
+            token.role = dbUser.role
+          }
+          token.levelCheckedAt = Date.now()
+        } catch {
+          /* ignore DB errors */
+        }
+      }
+      // trigger update ile manuel yenileme
+      if (trigger === 'update' && token.id) {
+        try {
+          const dbUser = await db.user.findUnique({
+            where: { id: token.id as string },
+            select: { level: true, role: true },
+          })
+          if (dbUser) {
+            token.level = dbUser.level
+            token.role = dbUser.role
+          }
+          token.levelCheckedAt = Date.now()
+        } catch {
+          /* ignore */
+        }
       }
       return token
     },
@@ -51,12 +101,12 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         ;(session.user as any).id = token.id
         ;(session.user as any).role = token.role
+        ;(session.user as any).level = token.level
       }
       return session
     },
   },
   events: {
-    // Demo kullanıcı çıkış yaptığında memory store temizlenir (veriler sıfırlanır)
     async signOut(message: any) {
       const token = message.token
       if (token?.role === 'demo' && token?.id) {
