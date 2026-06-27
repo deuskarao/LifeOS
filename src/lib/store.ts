@@ -361,9 +361,20 @@ function memoryStore(token: string): StoreOperations {
 function prismaStore(): StoreOperations {
   return {
     async list(resource, userId, options) {
-      const where = (resource === 'contracts' || resource === 'fuel' || resource === 'services')
-        ? {} // ilişkisel tablolar, userId yok (parent üzerinden)
-        : { userId }
+      const isAdminAll = userId === 'admin-all'
+      let where: any = {}
+
+      if (!isAdminAll) {
+        if (resource === 'contracts') {
+          // Contracts → property.userId üzerinden filtre
+          where = { property: { userId } }
+        } else if (resource === 'fuel' || resource === 'services') {
+          // Fuel/Services → vehicle.userId üzerinden filtre
+          where = { vehicle: { userId } }
+        } else {
+          where = { userId }
+        }
+      }
 
       const include: any = {}
       if (resource === 'properties') include.contracts = true
@@ -372,8 +383,7 @@ function prismaStore(): StoreOperations {
       if (resource === 'fuel') include.vehicle = true
       if (resource === 'services') include.vehicle = true
 
-      // Admin tüm kullanıcıların verisini görür
-      const finalWhere = userId === 'admin-all' ? {} : where
+      const finalWhere = where
 
       if (options?.months && (resource === 'income' || resource === 'expenses')) {
         const since = new Date()
@@ -382,22 +392,13 @@ function prismaStore(): StoreOperations {
       }
 
       const model = (db as any)[prismaModel(resource)]
-      let items = await model.findMany({
+      const items = await model.findMany({
         where: finalWhere,
         include: Object.keys(include).length ? include : undefined,
         orderBy: (resource === 'income' || resource === 'expenses' || resource === 'fuel' || resource === 'services')
           ? { date: 'desc' }
           : { createdAt: 'desc' },
       })
-
-      // Fuel/services için vehicleId filtre
-      if (resource === 'fuel' || resource === 'services') {
-        if ((finalWhere as any).userId) {
-          const userVehicles = await db.vehicle.findMany({ where: { userId: (finalWhere as any).userId }, select: { id: true } })
-          const ids = userVehicles.map((v) => v.id)
-          items = items.filter((i: any) => ids.includes(i.vehicleId))
-        }
-      }
 
       return items
     },
