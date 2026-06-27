@@ -28,6 +28,17 @@ export const authOptions: NextAuthOptions = {
         })
         if (!user) return null
 
+        // Google OAuth ile giriş — şifre kontrolü atla
+        if (credentials.password === 'GOOGLE_OAUTH_AUTO_LOGIN') {
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            level: user.level,
+          } as any
+        }
+
         const valid = await bcrypt.compare(credentials.password, user.password)
         if (!valid) return null
 

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,12 +13,37 @@ import { toast } from 'sonner'
 
 export function LoginView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Google OAuth callback — auto-login
+  useEffect(() => {
+    const googleEmail = searchParams.get('google_email')
+    if (googleEmail) {
+      setLoading(true)
+      signIn('credentials', {
+        email: googleEmail,
+        password: 'GOOGLE_OAUTH_AUTO_LOGIN',
+        redirect: false,
+      }).then((res) => {
+        if (res?.error) {
+          setError('Google girişi tamamlandı ama oturum açılamadı. Lütfen tekrar deneyin.')
+          setLoading(false)
+        } else {
+          router.refresh()
+        }
+      })
+    }
+    const errParam = searchParams.get('error')
+    if (errParam) {
+      setError('Google girişi başarısız: ' + errParam)
+    }
+  }, [searchParams, router])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -75,12 +100,21 @@ export function LoginView() {
   }
 
   async function googleLogin() {
-    // Google OAuth yapılandırılmadıysa bilgilendirici mesaj
-    const res = await signIn('google', { redirect: false }).catch(() => null)
-    if (res?.error) {
-      toast.info('Google ile giriş henüz yapılandırılmadı', {
-        description: 'Demo hesabı ile deneyebilir veya email/şifre ile giriş yapabilirsiniz.',
+    // Supabase Google OAuth — Supabase dashboard'da Google provider etkin olmalı
+    try {
+      const { supabase } = await import('@/lib/supabase-client')
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/google-callback`,
+        },
       })
+      if (error) {
+        toast.error('Google ile giriş başarısız: ' + error.message)
+      }
+      // Başarılıysa Supabase Google'a yönlendirir
+    } catch (e: any) {
+      toast.error('Google girişi yapılandırılamadı: ' + (e?.message || 'bilinmeyen hata'))
     }
   }
 
@@ -120,39 +154,7 @@ export function LoginView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* OAuth buttons */}
-            <div className="space-y-2 mb-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full gap-2"
-                onClick={googleLogin}
-                disabled={loading}
-              >
-                <Chrome className="h-4 w-4" />
-                Google ile giriş yap
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full gap-2 border-violet-500/30 hover:bg-violet-500/5"
-                onClick={demoLogin}
-                disabled={loading}
-              >
-                <Sparkles className="h-4 w-4 text-violet-500" />
-                Demo hesabı ile giriş yap
-              </Button>
-            </div>
-
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">veya</span>
-              </div>
-            </div>
-
+            {/* Email/şifre formu — üstte */}
             <form onSubmit={onSubmit} className="space-y-4">
               <AnimatePresence mode="wait">
                 {mode === 'register' && (
@@ -237,6 +239,40 @@ export function LoginView() {
                 )}
               </Button>
             </form>
+
+            {/* Ayraç */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">veya</span>
+              </div>
+            </div>
+
+            {/* OAuth butonları — altta */}
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={googleLogin}
+                disabled={loading}
+              >
+                <Chrome className="h-4 w-4" />
+                Google ile giriş yap
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2 border-violet-500/30 hover:bg-violet-500/5"
+                onClick={demoLogin}
+                disabled={loading}
+              >
+                <Sparkles className="h-4 w-4 text-violet-500" />
+                Demo hesabı ile giriş yap
+              </Button>
+            </div>
 
             <div className="mt-6 text-center text-sm text-muted-foreground">
               {mode === 'login' ? (

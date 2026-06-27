@@ -62,6 +62,7 @@ import {
   TrendingDown,
   Minus,
   Shield,
+  Clock,
 } from 'lucide-react'
 
 const CURRENCY_STORAGE_KEY = 'lifeos_currency'
@@ -809,10 +810,9 @@ function MembershipTab() {
       await qc.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success(
         level === 'premium'
-          ? 'Premium üyeliğe yükseltildiniz!'
+          ? 'Premium talebiniz iletildi — Admin onayı bekleniyor'
           : 'Standart üyeliğe geçildi',
       )
-      // Session'ı yenile — jwt callback trigger=update ile DB'den yeni level çeker
       await updateSession({})
       setTimeout(() => window.location.reload(), 500)
     },
@@ -823,12 +823,13 @@ function MembershipTab() {
   const currentLevel: string =
     isDemo || isAdmin ? 'premium' : (quota?.level || sessionLevel || 'standard')
   const isPremium = currentLevel === 'premium'
+  const isPendingPremium = currentLevel === 'pending_premium'
 
   const usedToday = quota?.usedToday ?? 0
   const limit = quota?.limit ?? (isPremium ? 5 : 1)
   const remaining = quota?.remaining ?? Math.max(0, limit - usedToday)
   const usagePercent = limit > 0 ? Math.min(100, (usedToday / limit) * 100) : 0
-  const canChangePlan = !isDemo && !isAdmin && !!userId
+  const canChangePlan = !isDemo && !isAdmin && !!userId && !isPendingPremium
 
   const netWorth = dashboard?.kpis?.netWorth ?? 0
   const wealthClass: WealthClass =
@@ -836,6 +837,22 @@ function MembershipTab() {
 
   return (
     <div className="space-y-4">
+      {/* Pending premium banner */}
+      {isPendingPremium && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+          <Clock className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+              Premium Onay Bekliyor
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Premium üyelik talebiniz alındı. Yönetici onayladıktan sonra premium özellikleri kullanabilirsiniz.
+              Onay sonrası otomatik olarak aktif olacaktır.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Current plan summary card */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}

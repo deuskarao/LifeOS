@@ -43,7 +43,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
   const userName = session?.user?.name || 'Kullanıcı'
   const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
-  const roleLabel = role === 'admin' ? 'Yönetici' : role === 'demo' ? 'Demo Modu' : 'Kullanıcı'
+  const level = (session?.user as any)?.level as 'standard' | 'premium' | 'pending_premium' | undefined
+  const roleLabel = role === 'admin' ? 'Yönetici - Premium' : role === 'demo' ? 'Demo - Premium' : level === 'premium' ? 'Kullanıcı - Premium' : level === 'pending_premium' ? 'Premium Onay Bekliyor' : 'Kullanıcı - Standart'
   const initials = userName.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
 
   const results = q
@@ -112,7 +113,9 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
               </Avatar>
               <div className="hidden sm:flex flex-col items-start leading-tight">
                 <span className="text-sm font-medium">{userName}</span>
-                <span className="text-[10px] text-muted-foreground">{roleLabel}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {role === 'admin' ? 'Yönetici - Premium' : role === 'demo' ? 'Demo - Premium' : level === 'premium' ? 'Kullanıcı - Premium' : level === 'pending_premium' ? 'Premium Onay Bekliyor' : 'Kullanıcı - Standart'}
+                </span>
               </div>
               {role === 'demo' && (
                 <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-violet-500/15 text-violet-600 dark:text-violet-400">
@@ -122,6 +125,11 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
               {role === 'admin' && (
                 <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   ADMIN
+                </Badge>
+              )}
+              {level === 'pending_premium' && (
+                <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  BEKLEMEDE
                 </Badge>
               )}
             </button>

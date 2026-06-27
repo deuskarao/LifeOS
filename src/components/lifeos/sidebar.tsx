@@ -89,14 +89,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   // Admin sadece admin panel görür — normal arayüz yok
   const groups = isAdmin
     ? ADMIN_GROUPS
-    : NAV_GROUPS.map((g) => ({
-        ...g,
-        items: g.items.filter((item) => {
-          // Standart kullanıcı AI Asistan'ı göremez
-          if (item.id === 'ai-insights' && !isPremiumOrDemo) return false
-          return true
-        }),
-      })).filter((g) => g.items.length > 0)
+    : NAV_GROUPS
 
   return (
     <div className="flex h-full flex-col">
@@ -116,8 +109,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </button>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
+      {/* Nav — içeriğe göre yükseklik, footer hemen altında */}
+      <nav className="overflow-y-auto px-3 py-4 no-scrollbar">
         {groups.map((group) => (
           <div key={group.label} className="mb-4">
             <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -163,9 +156,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      {/* Footer — premium banner veya durum */}
+      {/* Footer — premium banner veya durum, nav'ın hemen altında */}
       {isAdmin ? (
-        <div className="border-t p-3">
+        <div className="mt-auto border-t p-3">
           <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
@@ -177,7 +170,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         </div>
       ) : !isPremiumOrDemo ? (
-        <div className="border-t p-3">
+        <div className="mt-auto border-t p-3">
           <div className="rounded-lg bg-gradient-to-br from-violet-500/15 to-violet-500/5 border border-violet-500/20 p-3">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-3.5 w-3.5 text-violet-500" />
@@ -195,7 +188,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         </div>
       ) : (
-        <div className="border-t p-3">
+        <div className="mt-auto border-t p-3">
           <div className="rounded-lg bg-muted/50 p-3">
             <p className="text-[11px] font-semibold text-muted-foreground">
               {role === 'demo' ? 'Demo Modu' : 'Premium Üyelik'}

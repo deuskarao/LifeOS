@@ -84,7 +84,7 @@ export async function GET() {
     const upcomingPayments = [
       ...loans.map((l: any) => ({ name: l.loanName, type: 'Kredi Taksiti', amount: l.monthlyPayment, dueDay: 1 })),
       ...cards.filter((c: any) => c.balance > 0).map((c: any) => ({ name: c.cardName, type: 'Kart Borcu', amount: c.balance, dueDay: c.dueDay })),
-    ]
+    ].slice(0, 5)
 
     // Bu yıl yakıt/servis toplamları
     const yearStart = new Date(now.getFullYear(), 0, 1)

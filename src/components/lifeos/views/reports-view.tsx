@@ -151,73 +151,92 @@ function periodLabel(preset: PresetKey, from: string, to: string, period?: { fro
 }
 
 /** Real PDF export using jsPDF + jspdf-autotable. */
+// Türkçe karakterleri PDF için ASCII'ye çevirir (jsPDF standart font Türkçe desteklemez)
+function tr(s: string): string {
+  return s
+    .replace(/₺/g, 'TL')
+    .replace(/ş/g, 's').replace(/Ş/g, 'S')
+    .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+    .replace(/ı/g, 'i').replace(/İ/g, 'I')
+    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+    .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+    .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+}
+
 function exportPdf(data: ReportsData, label: string) {
   try {
     const doc = new jsPDF()
     // Title
-    doc.setFontSize(18)
+    doc.setFontSize(20)
     doc.setTextColor(20, 20, 20)
-    doc.text('LifeOS Finansal Rapor', 14, 20)
+    doc.text('LifeOS Finansal Rapor', 14, 22)
     doc.setFontSize(10)
     doc.setTextColor(100)
-    doc.text(`Dönem: ${label}`, 14, 28)
-    doc.text(`Oluşturulma: ${new Date().toLocaleDateString('tr-TR')}`, 14, 34)
+    doc.text(tr(`Donem: ${label}`), 14, 30)
+    doc.text(tr(`Olusturulma: ${new Date().toLocaleDateString('tr-TR')}`), 14, 36)
+    // Separator line
+    doc.setDrawColor(220)
+    doc.line(14, 40, 196, 40)
 
     // Summary section
     autoTable(doc, {
-      startY: 42,
-      head: [['Özet', 'Tutar']],
+      startY: 46,
+      head: [[tr('Özet'), tr('Tutar')]],
       body: [
-        ['Dönem Geliri', formatCurrency(data.summary.periodIncome)],
-        ['Dönem Gideri', formatCurrency(data.summary.periodExpense)],
-        ['Dönem Tasarrufu', formatCurrency(data.summary.periodSavings)],
-        ['Tasarruf Oranı', `%${data.summary.savingsRate.toFixed(1)}`],
-        ['Net Değer', formatCurrency(data.summary.netWorth)],
-        ['Banka Toplam', formatCurrency(data.summary.bankTotal)],
-        ['Varlıklar', formatCurrency(data.summary.assetTotal)],
-        ['Emlak', formatCurrency(data.summary.propertyTotal)],
-        ['Kredi Borcu', formatCurrency(data.summary.loanDebt)],
-        ['Kart Borcu', formatCurrency(data.summary.cardDebt)],
-      ],
+        [tr('Dönem Geliri'), formatCurrency(data.summary.periodIncome)],
+        [tr('Dönem Gideri'), formatCurrency(data.summary.periodExpense)],
+        [tr('Dönem Tasarrufu'), formatCurrency(data.summary.periodSavings)],
+        [tr('Tasarruf Oranı'), `%${data.summary.savingsRate.toFixed(1)}`],
+        [tr('Net Değer'), formatCurrency(data.summary.netWorth)],
+        [tr('Banka Toplam'), formatCurrency(data.summary.bankTotal)],
+        [tr('Varlıklar'), formatCurrency(data.summary.assetTotal)],
+        [tr('Emlak'), formatCurrency(data.summary.propertyTotal)],
+        [tr('Kredi Borcu'), formatCurrency(data.summary.loanDebt)],
+        [tr('Kart Borcu'), formatCurrency(data.summary.cardDebt)],
+      ].map(([a, b]) => [tr(a), tr(b as string)]),
       theme: 'striped',
       headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      bodyStyles: { textColor: 50 },
+      bodyStyles: { textColor: 50, fontSize: 10 },
+      alternateRowStyles: { fillColor: [245, 250, 248] },
       margin: { left: 14, right: 14 },
     })
 
     // Expense by category table
     autoTable(doc, {
-      startY: (doc as any).lastAutoTable.finalY + 10,
-      head: [['Gider Kategorisi', 'Tutar']],
-      body: data.charts.expenseByCategory.map((c) => [c.name, formatCurrency(c.value)]),
+      startY: (doc as any).lastAutoTable.finalY + 12,
+      head: [[tr('Gider Kategorisi'), tr('Tutar')]],
+      body: data.charts.expenseByCategory.map((c) => [tr(c.name), formatCurrency(c.value)]),
       theme: 'striped',
       headStyles: { fillColor: [244, 63, 94], textColor: 255, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 10 },
       margin: { left: 14, right: 14 },
     })
 
     // Income by category table
     autoTable(doc, {
-      startY: (doc as any).lastAutoTable.finalY + 10,
-      head: [['Gelir Kategorisi', 'Tutar']],
-      body: data.charts.incomeByCategory.map((c) => [c.name, formatCurrency(c.value)]),
+      startY: (doc as any).lastAutoTable.finalY + 12,
+      head: [[tr('Gelir Kategorisi'), tr('Tutar')]],
+      body: data.charts.incomeByCategory.map((c) => [tr(c.name), formatCurrency(c.value)]),
       theme: 'striped',
       headStyles: { fillColor: [14, 165, 233], textColor: 255, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 10 },
       margin: { left: 14, right: 14 },
     })
 
     // Monthly trend table
     if (data.charts.monthlyTrend.length > 0) {
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Ay', 'Gelir', 'Gider', 'Net']],
+        startY: (doc as any).lastAutoTable.finalY + 12,
+        head: [[tr('Ay'), tr('Gelir'), tr('Gider'), tr('Net')]],
         body: data.charts.monthlyTrend.map((m) => [
-          m.month,
+          tr(m.month),
           formatCurrency(m.income),
           formatCurrency(m.expense),
           formatCurrency(m.net),
         ]),
-        theme: 'striped',
+        theme: 'grid',
         headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9 },
         margin: { left: 14, right: 14 },
       })
     }
@@ -225,18 +244,19 @@ function exportPdf(data: ReportsData, label: string) {
     // Property performance
     if (data.propertyStats.length > 0) {
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Mülk', 'Tip', 'Güncel Değer', 'Aylık Kira', 'Yıllık Getiri %', 'Değer Artışı %']],
+        startY: (doc as any).lastAutoTable.finalY + 12,
+        head: [[tr('Mülk'), tr('Tip'), tr('Güncel Değer'), tr('Aylık Kira'), tr('Yıllık Getiri %'), tr('Değer Artışı %')]],
         body: data.propertyStats.map((p) => [
-          p.name,
-          p.type,
+          tr(p.name),
+          tr(p.type),
           formatCurrency(p.currentValue),
           formatCurrency(p.monthlyRent),
-          p.yieldRate.toFixed(1),
-          p.appreciation.toFixed(1),
+          `%${p.yieldRate.toFixed(1)}`,
+          `%${p.appreciation.toFixed(1)}`,
         ]),
         theme: 'striped',
         headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9 },
         margin: { left: 14, right: 14 },
       })
     }
@@ -244,21 +264,23 @@ function exportPdf(data: ReportsData, label: string) {
     // Vehicle cost section
     if (data.charts.fuelByVehicle.length > 0) {
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Araç Yakıt Maliyeti', 'Tutar']],
-        body: data.charts.fuelByVehicle.map((c) => [c.name, formatCurrency(c.value)]),
+        startY: (doc as any).lastAutoTable.finalY + 12,
+        head: [[tr('Araç Yakıt Maliyeti'), tr('Tutar')]],
+        body: data.charts.fuelByVehicle.map((c) => [tr(c.name), formatCurrency(c.value)]),
         theme: 'striped',
         headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 10 },
         margin: { left: 14, right: 14 },
       })
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 4,
+        startY: (doc as any).lastAutoTable.finalY + 6,
         body: [
-          ['Yakıt Toplam', formatCurrency(data.summary.fuelTotal)],
-          ['Servis Toplam', formatCurrency(data.summary.serviceTotal)],
-          ['Araç Toplam Maliyet', formatCurrency(data.summary.vehicleTotalCost)],
-        ],
+          [tr('Yakıt Toplam'), formatCurrency(data.summary.fuelTotal)],
+          [tr('Servis Toplam'), formatCurrency(data.summary.serviceTotal)],
+          [tr('Araç Toplam Maliyet'), formatCurrency(data.summary.vehicleTotalCost)],
+        ].map(([a, b]) => [tr(a), tr(b as string)]),
         theme: 'plain',
+        bodyStyles: { fontSize: 10, textColor: 50 },
         margin: { left: 14, right: 14 },
       })
     }
@@ -270,7 +292,7 @@ function exportPdf(data: ReportsData, label: string) {
       doc.setFontSize(8)
       doc.setTextColor(150)
       doc.text(
-        `LifeOS • Sayfa ${i}/${pageCount}`,
+        tr(`LifeOS • Sayfa ${i}/${pageCount}`),
         14,
         (doc as any).internal.pageSize.height - 8
       )

@@ -33,13 +33,7 @@ export function AppShell() {
     if (isAdmin && active !== 'admin') {
       set('admin')
     }
-    // Standart kullanıcı AI'ya erişemez
-    if (!isAdmin && active === 'ai-insights') {
-      const level = (session?.user as any)?.level
-      const isPremium = role === 'demo' || level === 'premium'
-      if (!isPremium) set('dashboard')
-    }
-  }, [isAdmin, active, set, session, role])
+  }, [isAdmin, active, set])
 
   // 10 dakikalık otomatik logout (inaktivite tabanlı)
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)

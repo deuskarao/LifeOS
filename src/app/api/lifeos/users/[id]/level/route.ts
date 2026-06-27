@@ -32,8 +32,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const body = await req.json().catch(() => null) as { level?: string } | null
     if (!body?.level) return fail('Level gerekli')
-    if (!['standard', 'premium'].includes(body.level)) return fail('Geçersiz level')
+    if (!['standard', 'premium', 'pending_premium'].includes(body.level)) return fail('Geçersiz level')
 
+    // Kullanıcı kendi seviyesini değiştiriyorsa:
+    // - premium isteğinde bulunursa → pending_premium (admin onayı gerekir)
+    // - standart'a düşürürse → direkt standard
+    if (!isAdmin && body.level === 'premium') {
+      const updated = await db.user.update({
+        where: { id },
+        data: { level: 'pending_premium' },
+        select: { id: true, email: true, name: true, role: true, level: true },
+      })
+      return ok(updated)
+    }
+
+    // Admin seviye değiştiriyorsa direkt uygular
     const updated = await db.user.update({
       where: { id },
       data: {
