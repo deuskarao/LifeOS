@@ -1,6 +1,6 @@
 'use client'
 
-import { useSyncExternalStore, useState } from 'react'
+import { useSyncExternalStore, useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -146,19 +146,59 @@ export function SettingsView() {
 /* -------------------------- Profile -------------------------- */
 
 function ProfileTab() {
-  const [name, setName] = useState('Ahmet Yılmaz')
-  const [phone, setPhone] = useState('+90 532 000 00 00')
+  const { data: session, update: updateSession } = useSession()
+  const qc = useQueryClient()
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => api.get<{ id: string; email: string; name: string; role: string; level: string; createdAt: string }>('/api/lifeos/profile'),
+  })
+
+  const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const handleSave = () => {
+  useEffect(() => {
+    if (profile?.name) setName(profile.name)
+  }, [profile?.name])
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast.error('Ad boş olamaz')
+      return
+    }
     setSaving(true)
-    setTimeout(() => {
+    try {
+      await api.put('/api/lifeos/profile', { name })
+      await updateSession({})
+      qc.invalidateQueries({ queryKey: ['profile'] })
+      toast.success('Profil bilgileriniz kaydedildi')
+    } catch (e: any) {
+      toast.error(e?.message || 'Kaydetme başarısız')
+    } finally {
       setSaving(false)
-      toast.success('Profil bilgileriniz kaydedildi', {
-        description: 'Değişiklikler hesabınıza uygulandı.',
-      })
-    }, 600)
+    }
   }
+
+  const email = profile?.email || session?.user?.email || ''
+  const role = profile?.role || (session?.user as any)?.role
+  const level = profile?.level || (session?.user as any)?.level
+  const initials = (name || email).split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <Skeleton className="h-40" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const levelLabel = level === 'premium' ? 'Premium' : level === 'pending_premium' ? 'Premium (Onay Bekliyor)' : 'Standart'
+  const levelBadgeClass = level === 'premium'
+    ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400'
+    : level === 'pending_premium'
+    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+    : 'bg-muted text-muted-foreground'
 
   return (
     <Card>
@@ -170,21 +210,19 @@ function ProfileTab() {
         <CardDescription>Kişisel bilgilerinizi güncelleyin</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Avatar */}
+        {/* Avatar — baş harfler (upload yok) */}
         <div className="flex items-center gap-4">
           <Avatar className="h-20 w-20">
             <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-              AY
+              {initials}
             </AvatarFallback>
           </Avatar>
           <div className="space-y-1">
-            <p className="text-sm font-medium">Profil Fotoğrafı</p>
-            <p className="text-xs text-muted-foreground">
-              JPG, PNG • Maks 2MB
-            </p>
-            <Button variant="outline" size="sm" className="mt-1" disabled>
-              Yükle
-            </Button>
+            <p className="text-sm font-medium">{name || 'Kullanıcı'}</p>
+            <p className="text-xs text-muted-foreground">{email}</p>
+            <Badge variant="secondary" className={levelBadgeClass}>
+              {levelLabel}
+            </Badge>
           </div>
         </div>
 
@@ -204,7 +242,7 @@ function ProfileTab() {
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="profile-email"
-                value="ahmet@lifeos.app"
+                value={email}
                 disabled
                 className="pl-9"
               />
@@ -212,38 +250,33 @@ function ProfileTab() {
             <p className="text-xs text-muted-foreground">E-posta değiştirilemez</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="profile-phone">Telefon</Label>
-            <div className="relative">
-              <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="profile-phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+90 5xx xxx xx xx"
-                className="pl-9"
-              />
+            <Label htmlFor="profile-role">Rol</Label>
+            <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3">
+              <Badge variant="outline" className="capitalize">
+                {role === 'admin' ? 'Yönetici' : role === 'demo' ? 'Demo' : 'Kullanıcı'}
+              </Badge>
             </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="profile-plan">Üyelik Planı</Label>
             <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3">
-              <Badge variant="secondary" className="bg-violet-500/15 text-violet-600 dark:text-violet-400">
-                Pro
+              <Badge variant="secondary" className={levelBadgeClass}>
+                {levelLabel}
               </Badge>
-              <span className="text-sm text-muted-foreground">Yıllık • 2025-12-31</span>
+              {profile?.createdAt && (
+                <span className="text-xs text-muted-foreground">
+                  Üyelik: {new Date(profile.createdAt).toLocaleDateString('tr-TR')}
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 border-t pt-4">
-          <Button variant="outline" onClick={() => {
-            setName('Ahmet Yılmaz')
-            setPhone('+90 532 000 00 00')
-            toast.info('Değişiklikler geri alındı')
-          }}>
+          <Button variant="outline" onClick={() => setName(profile?.name || '')}>
             Sıfırla
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="gap-2">
+          <Button onClick={handleSave} disabled={saving || !name.trim()} className="gap-2">
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -982,7 +1015,7 @@ function MembershipTab() {
       />
 
       {/* Plan cards */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <PlanCard
           name="Standart"
           price="Ücretsiz"
@@ -1084,45 +1117,45 @@ function PlanCard({
             </Badge>
           </div>
         )}
-        <CardHeader>
+        <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+              className={`flex h-9 w-9 items-center justify-center rounded-lg ${
                 isPremium
                   ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400'
                   : 'bg-muted text-muted-foreground'
               }`}
             >
               {isPremium ? (
-                <Crown className="h-5 w-5" />
+                <Crown className="h-4 w-4" />
               ) : (
-                <Shield className="h-5 w-5" />
+                <Shield className="h-4 w-4" />
               )}
             </div>
-            <div>
-              <CardTitle className="text-base">{name}</CardTitle>
-              <CardDescription className="text-xs">
+            <div className="min-w-0">
+              <CardTitle className="text-sm">{name}</CardTitle>
+              <CardDescription className="text-[11px]">
                 {isPremium ? 'Gelişmiş özellikler' : 'Temel özellikler'}
               </CardDescription>
             </div>
           </div>
-          <div className="mt-4 flex items-baseline gap-1">
-            <span className="text-3xl font-bold tracking-tight">{price}</span>
-            <span className="text-sm text-muted-foreground">{priceNote}</span>
+          <div className="mt-2 flex items-baseline gap-1">
+            <span className="text-2xl font-bold tracking-tight">{price}</span>
+            <span className="text-xs text-muted-foreground">{priceNote}</span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <ul className="space-y-2.5">
+        <CardContent className="space-y-2 pt-0">
+          <ul className="space-y-1.5">
             {features.map((f) => (
-              <li key={f.label} className="flex items-start gap-2 text-sm">
+              <li key={f.label} className="flex items-start gap-2 text-xs">
                 {f.included ? (
                   <Check
-                    className={`mt-0.5 h-4 w-4 shrink-0 ${
+                    className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
                       isPremium ? 'text-emerald-500' : 'text-primary'
                     }`}
                   />
                 ) : (
-                  <X className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
+                  <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
                 )}
                 <span
                   className={

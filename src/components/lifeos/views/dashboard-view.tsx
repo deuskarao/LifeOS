@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
 import { api } from '@/lib/api-client'
 import { formatCurrency, formatCompact } from '@/lib/lifeos'
 import { StatCard } from '../stat-card'
@@ -31,6 +32,8 @@ import {
   Crown,
   Check,
   Minus,
+  Lock,
+  PieChart as PieChartIcon,
 } from 'lucide-react'
 import {
   Area,
@@ -88,6 +91,10 @@ interface DashboardData {
 
 export function DashboardView() {
   const { set } = useNav()
+  const { data: session } = useSession()
+  const role = (session?.user as any)?.role as 'admin' | 'demo' | 'user' | undefined
+  const level = (session?.user as any)?.level as 'standard' | 'premium' | 'pending_premium' | undefined
+  const isPremiumOrDemo = role === 'admin' || role === 'demo' || level === 'premium'
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: () => api.get<DashboardData>('/api/lifeos/dashboard'),
@@ -170,8 +177,12 @@ export function DashboardView() {
         <MiniStat icon={CreditCard} label="Toplam Borç" value={k.cardDebt + k.loanDebt} color="rose" onClick={() => set('credit-cards')} />
       </div>
 
-      {/* Wealth class banner */}
-      {k.wealthClass && <WealthClassBanner wealthClass={k.wealthClass} netWorth={k.netWorth} />}
+      {/* Wealth class banner — sadece premium/demo/admin */}
+      {k.wealthClass && isPremiumOrDemo && <WealthClassBanner wealthClass={k.wealthClass} netWorth={k.netWorth} />}
+      {/* Standart kullanıcı için kilitli banner */}
+      {k.wealthClass && !isPremiumOrDemo && (
+        <LockedWealthClassBanner netWorth={k.netWorth} />
+      )}
 
       {/* Charts row 1 */}
       <div className="grid gap-4 lg:grid-cols-3">
@@ -209,36 +220,42 @@ export function DashboardView() {
 
         {/* Asset allocation */}
         <ChartCard title="Varlık Dağılımı" description="Yatırım portföyü" icon={Shield}>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie
-                data={data.charts.assetByType}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={90}
-                paddingAngle={2}
-              >
-                {data.charts.assetByType.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]} stroke="none" />
+          {data.charts.assetByType.length === 0 || data.charts.assetByType.every((d) => d.value === 0) ? (
+            <EmptyChart height={280} />
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={data.charts.assetByType}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {data.charts.assetByType.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]} stroke="none" />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(v: number, n: string) => [formatCurrency(v), n]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 flex flex-wrap gap-2 justify-center">
+                {data.charts.assetByType.map((a, i) => (
+                  <div key={a.name} className="flex items-center gap-1.5 text-xs">
+                    <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }} />
+                    <span className="text-muted-foreground">{a.name}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(v: number, n: string) => [formatCurrency(v), n]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-2 flex flex-wrap gap-2 justify-center">
-            {data.charts.assetByType.map((a, i) => (
-              <div key={a.name} className="flex items-center gap-1.5 text-xs">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }} />
-                <span className="text-muted-foreground">{a.name}</span>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </ChartCard>
       </div>
 
@@ -251,23 +268,27 @@ export function DashboardView() {
           icon={TrendingDown}
           className="lg:col-span-2"
         >
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={data.charts.expenseByCategory} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompact(v)} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} width={80} />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(v: number) => formatCurrency(v)}
-                cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
-              />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                {data.charts.expenseByCategory.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {data.charts.expenseByCategory.length === 0 || data.charts.expenseByCategory.every((d) => d.value === 0) ? (
+            <EmptyChart height={260} />
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={data.charts.expenseByCategory} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompact(v)} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(v: number) => formatCurrency(v)}
+                  cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
+                />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                  {data.charts.expenseByCategory.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </ChartCard>
 
         {/* Upcoming payments */}
@@ -548,5 +569,47 @@ function WealthClassBanner({
         </div>
       </div>
     </motion.div>
+  )
+}
+
+function LockedWealthClassBanner({ netWorth }: { netWorth: number }) {
+  const { set } = useNav()
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-xl border border-violet-500/20 bg-gradient-to-r from-violet-500/10 to-violet-500/5 p-5"
+    >
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-500 ring-1 ring-violet-500/30">
+          <Lock className="h-6 w-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Finansal Sınıfınız</p>
+          <p className="mt-0.5 text-sm font-semibold">Premium özellik</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Net servetinize göre finansal sınıfınızı görmek için Premium'a geçin
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => set('settings')} className="shrink-0 gap-1.5">
+          <Sparkles className="h-3.5 w-3.5" />
+          Premium'a Geç
+        </Button>
+      </div>
+    </motion.div>
+  )
+}
+
+/** Empty chart placeholder shown when chart data is missing or all zeros. */
+function EmptyChart({ height = 280 }: { height?: number }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-2 text-muted-foreground"
+      style={{ height }}
+    >
+      <PieChartIcon className="h-12 w-12 opacity-30" />
+      <p className="text-sm font-medium">Veri yok</p>
+      <p className="text-xs">Bu dönem için kayıt bulunamadı</p>
+    </div>
   )
 }

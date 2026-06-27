@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Wallet, Mail, Lock, Loader2, Sparkles, User, Chrome, ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { ThemeToggle } from './theme-toggle'
 
 export function LoginView() {
   const router = useRouter()
@@ -125,6 +126,11 @@ export function LoginView() {
         <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 
+      {/* Tema değiştirme butonu — sağ üst */}
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -135,8 +141,8 @@ export function LoginView() {
           onClick={() => router.refresh()}
           className="flex flex-col items-center mb-8 w-full"
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl gradient-emerald text-white shadow-lg shadow-emerald-500/20 mb-4">
-            <Wallet className="h-7 w-7" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-background shadow-lg ring-1 ring-border/50 mb-4">
+            <img src="/lifeos-logo.svg" alt="LifeOS" className="h-10 w-10" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">LifeOS</h1>
           <p className="mt-1 text-sm text-muted-foreground">Yaşam Yönetim Platformu</p>

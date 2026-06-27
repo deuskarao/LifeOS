@@ -99,6 +99,39 @@ const demoStores = new Map<string, DemoData>()
 
 const DEMO_USER_ID = 'demo-user'
 
+// Demo AI hak takibi — her demo session için günlük 5 hak
+interface DemoAiQuota {
+  usedToday: number
+  resetAt: Date
+}
+const demoAiQuotas = new Map<string, DemoAiQuota>()
+
+function getDemoAiQuota(sessionKey: string): DemoAiQuota {
+  const now = new Date()
+  let q = demoAiQuotas.get(sessionKey)
+  if (!q) {
+    q = { usedToday: 0, resetAt: now }
+    demoAiQuotas.set(sessionKey, q)
+  }
+  // 24 saat geçtiyse sıfırla
+  if ((now.getTime() - q.resetAt.getTime()) / (1000 * 60 * 60) >= 24) {
+    q.usedToday = 0
+    q.resetAt = now
+  }
+  return q
+}
+
+export function incrementDemoAiQuota(sessionKey: string): { usedToday: number; limit: number; remaining: number } {
+  const q = getDemoAiQuota(sessionKey)
+  q.usedToday += 1
+  return { usedToday: q.usedToday, limit: 5, remaining: Math.max(0, 5 - q.usedToday) }
+}
+
+export function getDemoAiQuotaStatus(sessionKey: string): { usedToday: number; limit: number; remaining: number; canUse: boolean } {
+  const q = getDemoAiQuota(sessionKey)
+  return { usedToday: q.usedToday, limit: 5, remaining: Math.max(0, 5 - q.usedToday), canUse: q.usedToday < 5 }
+}
+
 function emptyDemoData(): DemoData {
   return {
     bankAccounts: [], creditCards: [], loans: [], assets: [], income: [], expenses: [],
@@ -194,6 +227,7 @@ function getDemoStore(sessionToken: string): DemoData {
 
 export function clearDemoStore(sessionToken: string) {
   demoStores.delete(sessionToken)
+  demoAiQuotas.delete(sessionToken)
 }
 
 // ===== Store Interface =====

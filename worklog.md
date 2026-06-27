@@ -454,3 +454,92 @@ Stage Summary:
 - Home kullanıcısının JSON verileri DB'ye tam migrasyon edildi
 - Tüm UI düzeltmeleri tamamlandı
 - Admin şifre değiştirildi, ahmet silindi, 3 yeni kullanıcı eklendi
+
+---
+Task ID: cc-loans-fix
+Agent: full-stack-developer
+Task: Credit cards grouped by bank + loans auto-calculate remaining debt
+
+Work Log:
+- Read worklog.md, bank-accounts-view.tsx (reference pattern), credit-cards-view.tsx, loans-view.tsx to understand current implementations.
+- Modified credit-cards-view.tsx: cards are now grouped by `bankName` using the same reduce pattern as bank-accounts-view (`grouped` + `bankNames`). Each bank gets a section header with colored dot (accentColor from first card), bank name, badge "N kart", and total debt + total limit on the right. Within each group, the existing gradient card design is preserved. PageHeader description updated to show "{n} kart • {m} banka • {used} kullanıldı".
+- Modified loans-view.tsx: added `loansWithCalc` mapping that computes `calculatedRemaining = (installmentsTotal - installmentsPaid) * monthlyPayment`, `isAutoCalculated` (DB remaining is 0 but calc > 0), and `displayRemaining` (DB value if >0, else calculated). Stats now use `displayRemaining` for totalDebt/activeCount. In each loan card: main "Kalan Borç" shows `displayRemaining`; if DB value differs from calculated, shows "(Hesaplanan: ₺X)" note in amber; if `isAutoCalculated`, shows amber "Otomatik hesaplandı" badge + "DB: ₺X" caption. `isComplete` now uses `displayRemaining`. Everything else (form, stats, layout) kept the same.
+- Ran `bun run lint` — passed with no errors.
+- Verified dev server compiles cleanly.
+
+Stage Summary:
+- Files modified: src/components/lifeos/views/credit-cards-view.tsx, src/components/lifeos/views/loans-view.tsx
+- Credit cards: now grouped by bank with section headers (matching bank-accounts-view pattern), per-bank totals (debt + limit), existing gradient card visual preserved.
+- Loans: auto-calculate remaining debt from installments × monthly payment; falls back to calculated value when DB value is 0/stale; amber "Otomatik hesaplandı" badge for auto-calculated loans; "(Hesaplanan: ₺X)" note when DB and calculated values differ.
+- Named exports `CreditCardsView` and `LoansView` preserved. Turkish labels. Dark theme compatible.
+
+---
+Task ID: reports-charts-fix
+Agent: full-stack-developer
+Task: PDF export better formatting + empty charts placeholder
+
+Work Log:
+- Read worklog.md, reports-view.tsx (full 1076 lines), dashboard-view.tsx (full 591 lines) to understand current PDF export logic and chart rendering patterns.
+- Reports: Rewrote `exportPdf` (lines 167-376) with professional layout:
+  - Header: "LifeOS Finansal Rapor" title (bold, 20pt) + period + creation date + separator line.
+  - Added `addSectionTitle()` helper with page-break protection (y > 250 → addPage + reset to y=20), dark gray color (50,50,50), 13pt bold.
+  - Six numbered sections with explicit titles BEFORE each table: "1. ÖZET", "2. GELİR KATEGORİLERİ", "3. GİDER KATEGORİLERİ", "4. AYLIK TREND", "5. EMLAK PERFORMANSI", "6. ARAÇ MALİYETLERİ".
+  - All tables use `theme: 'grid'` (cleaner borders), 18-unit spacing between sections.
+  - Font sizes: titles 13pt, headers 11pt bold, body 10pt (9pt for property table).
+  - Each table has color-coded header (emerald/sky/rose/violet/amber), alternate row fill for readability.
+  - Property table: `columnStyles` with explicit cellWidth (50/25/35/28/22/22mm = 182mm) so 6 columns don't cramp.
+  - Empty category tables (income/expense) now render a "Veri yok" placeholder row instead of empty body.
+  - Page-break safety check before vehicle totals table (nextY > 260 → new page).
+  - Footer: left "LifeOS Finansal Rapor", center date, right "Sayfa i/N" on every page.
+- Empty Chart Placeholders ("Veri yok"):
+  - Added shared `EmptyChart({ height })` component to both views — displays PieChartIcon (lucide) at 30% opacity + "Veri yok" + "Bu dönem için kayıt bulunamadı" centered, using `style={{ height }}` to match each chart's height.
+  - Added `PieChart as PieChartIcon` lucide import to both files (aliased to avoid clash with recharts `PieChart`).
+  - Dashboard: wrapped `assetByType` PieChart (280px) and `expenseByCategory` BarChart (260px) with empty-state conditional `length === 0 || every(d.value === 0)`. The asset legend below the pie is also hidden when empty.
+  - Reports: wrapped `monthlyTrend` (300px), `incomeByCategory` (260px), `expenseByCategory` (260px), `netWorthBreakdown` (300px), `fuelByVehicle` (300px) with conditional. The income/expense pie legends are hidden when empty. The Net Worth `SummaryRow` grid (which uses summary data, not chart data) stays visible even when the BarChart is empty.
+- Verified `bun run lint` passes clean (no errors).
+- Verified dev server compiles successfully (`✓ Compiled in 103ms` etc. in dev.log).
+
+Stage Summary:
+- Files modified: src/components/lifeos/views/reports-view.tsx (exportPdf rewrite + 5 empty-state wrappers + EmptyChart helper), src/components/lifeos/views/dashboard-view.tsx (2 empty-state wrappers + EmptyChart helper + PieChartIcon import).
+- Named exports `ReportsView` and `DashboardView` preserved.
+- PDF export now produces a structured, multi-section document with clear visual hierarchy, page-break protection, and a 3-cell footer (report name | date | page number).
+- All 7 charts (2 in Dashboard + 5 in Reports) gracefully handle empty/all-zero data with a "Veri yok" placeholder instead of rendering broken empty pies/bars.
+
+---
+Task ID: 13
+Agent: main
+Task: Logo + UI düzeltmeleri + demo AI hak + admin sadeleştirme + settings DB
+
+Work Log:
+- Logo: lifeos-logo.svg public'e kopyalandı, sidebar + login + favicon'da kullanılıyor
+- Sidebar logo: hover efekti (scale-110 + shadow + bg-muted/60 + text-primary)
+- Login: tema butonu sağ üstte (ThemeToggle component), Google+Demo butonları altta
+- Demo AI: 5 hak (sınırsız değil) — memory'de getDemoAiQuotaStatus/incrementDemoAiQuota ile takip
+- Admin: AI Asistan + Ayarlar gizli (topbar menüde ve sidebar'da yok), AI API 403 döner
+- Settings profil: DB'den çekiyor (/api/lifeos/profile GET/PUT), hardcoded Ahmet silindi
+- Profil resmi yükle butonu kaldırıldı, baş harfler avatar
+- Dashboard: standart kullanıcı finansal sınıfı kilitli (LockedWealthClassBanner), premium/demo/admin açık
+- Varlık grafikleri 0 ise "Veri yok" placeholder (dashboard + reports)
+- KPI kartları: min-h-[120px] + h-full ile eşit boyut
+- Kredi kartları: banka banka gruplu (bank-accounts pattern)
+- Krediler: kalan borç otomatik hesaplanıyor (installmentsTotal - installmentsPaid) × monthlyPayment
+- Rapor PDF: 6 numaralı section, grid theme, sayfa kırılması, daha iyi font boyutları
+- Üyelik kartları: daha kompakt (text-xs, h-9 icon, pb-3), md:grid-cols-2
+- DB düzeltmeleri: admin@lifeos.app, demo@lifeos.app, home@lifeos.com (standard), yagmur, mustafa
+
+Test (Agent Browser):
+- Login: logo + tema butonu + email/şifre üstte + Google/Demo altta ✓
+- Demo login: dashboard açıldı, "Orta Sınıf" wealth class görünüyor (premium) ✓
+- Home login (standart): "Kullanıcı - Standart" etiketi, wealth class KİLİTLİ "Premium özellik" ✓
+- Settings profil: DB'den "Home" adı, "home@lifeos.com" email, "Standart" plan ✓
+- AI view: standart kullanıcı "Günlük hak: 1/1 kaldı" ✓
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- Logo tüm uygulamada güncellendi (elmas logo SVG)
+- Demo 5 hak (sınırsız değil), admin AI yok
+- Settings DB'den çekiyor, profil resmi upload kaldırıldı
+- Standart kullanıcı finansal sınıfı göremez (kilitli banner)
+- Kredi kartları banka banka gruplu, krediler otomatik borç hesaplama
+- Varlık grafikleri 0 ise "Veri yok" placeholder
+- Rapor PDF profesyonel format (6 section, grid, sayfa kırılması)

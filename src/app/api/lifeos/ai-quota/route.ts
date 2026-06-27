@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { ok, fail } from '@/lib/lifeos'
-import { getSessionUser } from '@/lib/store'
+import { getSessionUser, getDemoAiQuotaStatus } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,14 +11,20 @@ export async function GET() {
     const sessionUser = await getSessionUser()
     if (!sessionUser) return fail('Yetkisiz', 401)
 
-    // Demo kullanıcıları için sınırsız (memory'de tutulmaz)
+    // Admin AI kullanmaz
+    if (sessionUser.role === 'admin') {
+      return ok({ level: 'admin', canUseAi: false, usedToday: 0, limit: 0, remaining: 0, isPremium: true })
+    }
+
+    // Demo kullanıcıları için 5 hak (memory'de takip)
     if (sessionUser.role === 'demo') {
+      const q = getDemoAiQuotaStatus(`demo-${sessionUser.id}`)
       return ok({
         level: 'premium',
-        canUseAi: true,
-        usedToday: 0,
-        limit: 999,
-        remaining: 999,
+        canUseAi: q.canUse,
+        usedToday: q.usedToday,
+        limit: q.limit,
+        remaining: q.remaining,
         isPremium: true,
       })
     }

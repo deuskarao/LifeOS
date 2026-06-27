@@ -26,6 +26,7 @@ import {
   Landmark,
   Calendar,
   Check,
+  PieChart as PieChartIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -166,21 +167,46 @@ function tr(s: string): string {
 function exportPdf(data: ReportsData, label: string) {
   try {
     const doc = new jsPDF()
-    // Title
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 14
+
+    // === Header ===
     doc.setFontSize(20)
     doc.setTextColor(20, 20, 20)
-    doc.text('LifeOS Finansal Rapor', 14, 22)
+    doc.setFont('helvetica', 'bold')
+    doc.text('LifeOS Finansal Rapor', margin, 22)
+    doc.setFont('helvetica', 'normal')
+
     doc.setFontSize(10)
     doc.setTextColor(100)
-    doc.text(tr(`Donem: ${label}`), 14, 30)
-    doc.text(tr(`Olusturulma: ${new Date().toLocaleDateString('tr-TR')}`), 14, 36)
+    doc.text(tr(`Dönem: ${label}`), margin, 30)
+    doc.text(tr(`Oluşturulma: ${new Date().toLocaleDateString('tr-TR')}`), margin, 36)
+
     // Separator line
     doc.setDrawColor(220)
-    doc.line(14, 40, 196, 40)
+    doc.line(margin, 40, pageWidth - margin, 40)
 
-    // Summary section
+    /** Adds a section title with page break protection. Returns the new Y position. */
+    const addSectionTitle = (title: string, y: number): number => {
+      if (y > 250) {
+        doc.addPage()
+        y = 20
+      }
+      doc.setFontSize(13)
+      doc.setTextColor(50, 50, 50)
+      doc.setFont('helvetica', 'bold')
+      doc.text(tr(title), margin, y)
+      doc.setFont('helvetica', 'normal')
+      return y + 6
+    }
+
+    let nextY = 50
+
+    // === 1. ÖZET ===
+    nextY = addSectionTitle('1. ÖZET', nextY)
     autoTable(doc, {
-      startY: 46,
+      startY: nextY,
       head: [[tr('Özet'), tr('Tutar')]],
       body: [
         [tr('Dönem Geliri'), formatCurrency(data.summary.periodIncome)],
@@ -194,39 +220,55 @@ function exportPdf(data: ReportsData, label: string) {
         [tr('Kredi Borcu'), formatCurrency(data.summary.loanDebt)],
         [tr('Kart Borcu'), formatCurrency(data.summary.cardDebt)],
       ].map(([a, b]) => [tr(a), tr(b as string)]),
-      theme: 'striped',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 11 },
       bodyStyles: { textColor: 50, fontSize: 10 },
       alternateRowStyles: { fillColor: [245, 250, 248] },
-      margin: { left: 14, right: 14 },
+      margin: { left: margin, right: margin },
     })
+    nextY = (doc as any).lastAutoTable.finalY + 18
 
-    // Expense by category table
+    // === 2. GELİR KATEGORİLERİ ===
+    nextY = addSectionTitle('2. GELIR KATEGORILERI', nextY)
+    const incomeBody =
+      data.charts.incomeByCategory.length > 0
+        ? data.charts.incomeByCategory.map((c) => [tr(c.name), formatCurrency(c.value)])
+        : [[tr('Veri yok'), '-']]
     autoTable(doc, {
-      startY: (doc as any).lastAutoTable.finalY + 12,
-      head: [[tr('Gider Kategorisi'), tr('Tutar')]],
-      body: data.charts.expenseByCategory.map((c) => [tr(c.name), formatCurrency(c.value)]),
-      theme: 'striped',
-      headStyles: { fillColor: [244, 63, 94], textColor: 255, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 10 },
-      margin: { left: 14, right: 14 },
-    })
-
-    // Income by category table
-    autoTable(doc, {
-      startY: (doc as any).lastAutoTable.finalY + 12,
+      startY: nextY,
       head: [[tr('Gelir Kategorisi'), tr('Tutar')]],
-      body: data.charts.incomeByCategory.map((c) => [tr(c.name), formatCurrency(c.value)]),
-      theme: 'striped',
-      headStyles: { fillColor: [14, 165, 233], textColor: 255, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 10 },
-      margin: { left: 14, right: 14 },
+      body: incomeBody,
+      theme: 'grid',
+      headStyles: { fillColor: [14, 165, 233], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+      bodyStyles: { fontSize: 10, textColor: 50 },
+      alternateRowStyles: { fillColor: [240, 248, 255] },
+      margin: { left: margin, right: margin },
     })
+    nextY = (doc as any).lastAutoTable.finalY + 18
 
-    // Monthly trend table
+    // === 3. GİDER KATEGORİLERİ ===
+    nextY = addSectionTitle('3. GIDER KATEGORILERI', nextY)
+    const expenseBody =
+      data.charts.expenseByCategory.length > 0
+        ? data.charts.expenseByCategory.map((c) => [tr(c.name), formatCurrency(c.value)])
+        : [[tr('Veri yok'), '-']]
+    autoTable(doc, {
+      startY: nextY,
+      head: [[tr('Gider Kategorisi'), tr('Tutar')]],
+      body: expenseBody,
+      theme: 'grid',
+      headStyles: { fillColor: [244, 63, 94], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+      bodyStyles: { fontSize: 10, textColor: 50 },
+      alternateRowStyles: { fillColor: [255, 240, 245] },
+      margin: { left: margin, right: margin },
+    })
+    nextY = (doc as any).lastAutoTable.finalY + 18
+
+    // === 4. AYLIK TREND ===
     if (data.charts.monthlyTrend.length > 0) {
+      nextY = addSectionTitle('4. AYLIK TREND', nextY)
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 12,
+        startY: nextY,
         head: [[tr('Ay'), tr('Gelir'), tr('Gider'), tr('Net')]],
         body: data.charts.monthlyTrend.map((m) => [
           tr(m.month),
@@ -235,16 +277,19 @@ function exportPdf(data: ReportsData, label: string) {
           formatCurrency(m.net),
         ]),
         theme: 'grid',
-        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 9 },
-        margin: { left: 14, right: 14 },
+        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+        bodyStyles: { fontSize: 10, textColor: 50 },
+        alternateRowStyles: { fillColor: [245, 240, 255] },
+        margin: { left: margin, right: margin },
       })
+      nextY = (doc as any).lastAutoTable.finalY + 18
     }
 
-    // Property performance
+    // === 5. EMLAK PERFORMANSI ===
     if (data.propertyStats.length > 0) {
+      nextY = addSectionTitle('5. EMLAK PERFORMANSI', nextY)
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 12,
+        startY: nextY,
         head: [[tr('Mülk'), tr('Tip'), tr('Güncel Değer'), tr('Aylık Kira'), tr('Yıllık Getiri %'), tr('Değer Artışı %')]],
         body: data.propertyStats.map((p) => [
           tr(p.name),
@@ -254,48 +299,72 @@ function exportPdf(data: ReportsData, label: string) {
           `%${p.yieldRate.toFixed(1)}`,
           `%${p.appreciation.toFixed(1)}`,
         ]),
-        theme: 'striped',
-        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 9 },
-        margin: { left: 14, right: 14 },
+        theme: 'grid',
+        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+        bodyStyles: { fontSize: 9, textColor: 50 },
+        alternateRowStyles: { fillColor: [245, 240, 255] },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 22 },
+          5: { cellWidth: 22 },
+        },
+        margin: { left: margin, right: margin },
       })
+      nextY = (doc as any).lastAutoTable.finalY + 18
     }
 
-    // Vehicle cost section
+    // === 6. ARAÇ MALİYETLERİ ===
+    nextY = addSectionTitle('6. ARAC MALIYETLERI', nextY)
     if (data.charts.fuelByVehicle.length > 0) {
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 12,
+        startY: nextY,
         head: [[tr('Araç Yakıt Maliyeti'), tr('Tutar')]],
         body: data.charts.fuelByVehicle.map((c) => [tr(c.name), formatCurrency(c.value)]),
-        theme: 'striped',
-        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 10 },
-        margin: { left: 14, right: 14 },
-      })
-      autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 6,
-        body: [
-          [tr('Yakıt Toplam'), formatCurrency(data.summary.fuelTotal)],
-          [tr('Servis Toplam'), formatCurrency(data.summary.serviceTotal)],
-          [tr('Araç Toplam Maliyet'), formatCurrency(data.summary.vehicleTotalCost)],
-        ].map(([a, b]) => [tr(a), tr(b as string)]),
-        theme: 'plain',
+        theme: 'grid',
+        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold', fontSize: 11 },
         bodyStyles: { fontSize: 10, textColor: 50 },
-        margin: { left: 14, right: 14 },
+        alternateRowStyles: { fillColor: [255, 248, 235] },
+        margin: { left: margin, right: margin },
       })
+      nextY = (doc as any).lastAutoTable.finalY + 8
     }
+    // Page break safety for the totals table
+    if (nextY > 260) {
+      doc.addPage()
+      nextY = 20
+    }
+    autoTable(doc, {
+      startY: nextY,
+      body: [
+        [tr('Yakıt Toplam'), formatCurrency(data.summary.fuelTotal)],
+        [tr('Servis Toplam'), formatCurrency(data.summary.serviceTotal)],
+        [tr('Araç Toplam Maliyet'), formatCurrency(data.summary.vehicleTotalCost)],
+      ].map(([a, b]) => [tr(a), tr(b as string)]),
+      theme: 'grid',
+      bodyStyles: { fontSize: 10, textColor: 50, fontStyle: 'bold' },
+      margin: { left: margin, right: margin },
+    })
 
-    // Footer page numbers
+    // === Footer ===
     const pageCount = (doc as any).internal.getNumberOfPages()
+    const footerDate = tr(new Date().toLocaleDateString('tr-TR'))
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)
       doc.setFontSize(8)
       doc.setTextColor(150)
-      doc.text(
-        tr(`LifeOS • Sayfa ${i}/${pageCount}`),
-        14,
-        (doc as any).internal.pageSize.height - 8
-      )
+      const footerY = pageHeight - 8
+      // Left: report name
+      doc.text(tr('LifeOS Finansal Rapor'), margin, footerY)
+      // Center: date
+      const dateWidth = doc.getTextWidth(footerDate)
+      doc.text(footerDate, pageWidth / 2 - dateWidth / 2, footerY)
+      // Right: page number
+      const pageStr = tr(`Sayfa ${i}/${pageCount}`)
+      const pageStrWidth = doc.getTextWidth(pageStr)
+      doc.text(pageStr, pageWidth - margin - pageStrWidth, footerY)
     }
 
     doc.save(`lifeos-rapor-${new Date().toISOString().slice(0, 10)}.pdf`)
@@ -607,36 +676,40 @@ export function ReportsView() {
           icon={TrendingUp}
           className="lg:col-span-2"
         >
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={c.monthlyTrend} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => formatCompact(v)}
-              />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(v: number) => formatCurrency(v)}
-                cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-                iconType="circle"
-                iconSize={8}
-              />
-              <Bar dataKey="income" name="Gelir" fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name="Gider" fill={CHART_COLORS.rose} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="net" name="Net" fill={CHART_COLORS.violet} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {c.monthlyTrend.length === 0 || c.monthlyTrend.every((d) => d.income === 0 && d.expense === 0 && d.net === 0) ? (
+            <EmptyChart height={300} />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={c.monthlyTrend} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => formatCompact(v)}
+                />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(v: number) => formatCurrency(v)}
+                  cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                  iconType="circle"
+                  iconSize={8}
+                />
+                <Bar dataKey="income" name="Gelir" fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name="Gider" fill={CHART_COLORS.rose} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="net" name="Net" fill={CHART_COLORS.violet} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </ChartCard>
 
         <ChartCard
@@ -644,43 +717,49 @@ export function ReportsView() {
           description="Dönem dağılımı"
           icon={TrendingUp}
         >
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie
-                data={c.incomeByCategory}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={90}
-                paddingAngle={2}
-              >
-                {c.incomeByCategory.map((_, i) => (
-                  <Cell
-                    key={i}
-                    fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]}
-                    stroke="none"
+          {c.incomeByCategory.length === 0 || c.incomeByCategory.every((d) => d.value === 0) ? (
+            <EmptyChart height={260} />
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={c.incomeByCategory}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {c.incomeByCategory.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]}
+                        stroke="none"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(v: number, n: string) => [formatCurrency(v), n]}
                   />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 flex flex-wrap gap-2 justify-center max-h-20 overflow-y-auto">
+                {c.incomeByCategory.map((a, i) => (
+                  <div key={a.name} className="flex items-center gap-1.5 text-xs">
+                    <span
+                      className="h-2.5 w-2.5 rounded-sm"
+                      style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }}
+                    />
+                    <span className="text-muted-foreground">{a.name}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(v: number, n: string) => [formatCurrency(v), n]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-2 flex flex-wrap gap-2 justify-center max-h-20 overflow-y-auto">
-            {c.incomeByCategory.map((a, i) => (
-              <div key={a.name} className="flex items-center gap-1.5 text-xs">
-                <span
-                  className="h-2.5 w-2.5 rounded-sm"
-                  style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }}
-                />
-                <span className="text-muted-foreground">{a.name}</span>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </ChartCard>
       </div>
 
@@ -691,43 +770,49 @@ export function ReportsView() {
           description="Dönem dağılımı"
           icon={TrendingDown}
         >
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie
-                data={c.expenseByCategory}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={90}
-                paddingAngle={2}
-              >
-                {c.expenseByCategory.map((_, i) => (
-                  <Cell
-                    key={i}
-                    fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]}
-                    stroke="none"
+          {c.expenseByCategory.length === 0 || c.expenseByCategory.every((d) => d.value === 0) ? (
+            <EmptyChart height={260} />
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={c.expenseByCategory}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {c.expenseByCategory.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]}
+                        stroke="none"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(v: number, n: string) => [formatCurrency(v), n]}
                   />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 flex flex-wrap gap-2 justify-center max-h-20 overflow-y-auto">
+                {c.expenseByCategory.map((a, i) => (
+                  <div key={a.name} className="flex items-center gap-1.5 text-xs">
+                    <span
+                      className="h-2.5 w-2.5 rounded-sm"
+                      style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }}
+                    />
+                    <span className="text-muted-foreground">{a.name}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(v: number, n: string) => [formatCurrency(v), n]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-2 flex flex-wrap gap-2 justify-center max-h-20 overflow-y-auto">
-            {c.expenseByCategory.map((a, i) => (
-              <div key={a.name} className="flex items-center gap-1.5 text-xs">
-                <span
-                  className="h-2.5 w-2.5 rounded-sm"
-                  style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }}
-                />
-                <span className="text-muted-foreground">{a.name}</span>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </ChartCard>
 
         <ChartCard
@@ -736,44 +821,48 @@ export function ReportsView() {
           icon={Wallet}
           className="lg:col-span-2"
         >
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart
-              data={c.netWorthBreakdown}
-              layout="vertical"
-              margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
-              <XAxis
-                type="number"
-                tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => formatCompact(v)}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 12, fill: 'oklch(0.5 0.01 240)' }}
-                axisLine={false}
-                tickLine={false}
-                width={90}
-              />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(v: number) => formatCurrency(v)}
-                cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
-              />
-              <ReferenceLine x={0} stroke="oklch(0.5 0.01 240 / 0.4)" />
-              <Bar dataKey="value" name="Tutar" radius={[0, 6, 6, 0]}>
-                {c.netWorthBreakdown.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={NET_WORTH_COLORS[entry.name] || 'oklch(0.6 0.01 240)'}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {c.netWorthBreakdown.length === 0 || c.netWorthBreakdown.every((d) => d.value === 0) ? (
+            <EmptyChart height={300} />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={c.netWorthBreakdown}
+                layout="vertical"
+                margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => formatCompact(v)}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 12, fill: 'oklch(0.5 0.01 240)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={90}
+                />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(v: number) => formatCurrency(v)}
+                  cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
+                />
+                <ReferenceLine x={0} stroke="oklch(0.5 0.01 240 / 0.4)" />
+                <Bar dataKey="value" name="Tutar" radius={[0, 6, 6, 0]}>
+                  {c.netWorthBreakdown.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={NET_WORTH_COLORS[entry.name] || 'oklch(0.6 0.01 240)'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
             <SummaryRow icon={Landmark} label="Banka" value={s.bankTotal} color="emerald" />
             <SummaryRow icon={Shield} label="Varlıklar" value={s.assetTotal} color="amber" />
@@ -917,43 +1006,47 @@ export function ReportsView() {
           icon={Fuel}
           className="lg:col-span-2"
         >
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart
-              data={c.fuelByVehicle}
-              margin={{ top: 5, right: 5, left: -10, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => formatCompact(v)}
-              />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(v: number) => formatCurrency(v)}
-                cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
-              />
-              <Bar dataKey="value" name="Yakıt" radius={[6, 6, 0, 0]}>
-                {c.fuelByVehicle.map((_, i) => (
-                  <Cell
-                    key={i}
-                    fill={
-                      [CHART_COLORS.amber, CHART_COLORS.rose, CHART_COLORS.teal, CHART_COLORS.violet][
-                        i % 4
-                      ]
-                    }
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {c.fuelByVehicle.length === 0 || c.fuelByVehicle.every((d) => d.value === 0) ? (
+            <EmptyChart height={300} />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={c.fuelByVehicle}
+                margin={{ top: 5, right: 5, left: -10, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => formatCompact(v)}
+                />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(v: number) => formatCurrency(v)}
+                  cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
+                />
+                <Bar dataKey="value" name="Yakıt" radius={[6, 6, 0, 0]}>
+                  {c.fuelByVehicle.map((_, i) => (
+                    <Cell
+                      key={i}
+                      fill={
+                        [CHART_COLORS.amber, CHART_COLORS.rose, CHART_COLORS.teal, CHART_COLORS.violet][
+                          i % 4
+                        ]
+                      }
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </ChartCard>
       </div>
 
@@ -1071,6 +1164,20 @@ function SummaryRow({
           {formatCurrency(value)}
         </p>
       </div>
+    </div>
+  )
+}
+
+/** Empty chart placeholder shown when chart data is missing or all zeros. */
+function EmptyChart({ height = 280 }: { height?: number }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-2 text-muted-foreground"
+      style={{ height }}
+    >
+      <PieChartIcon className="h-12 w-12 opacity-30" />
+      <p className="text-sm font-medium">Veri yok</p>
+      <p className="text-xs">Bu dönem için kayıt bulunamadı</p>
     </div>
   )
 }

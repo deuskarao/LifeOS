@@ -96,12 +96,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       {/* Brand — tıklayınca dashboard'a gider (admin için admin panel) */}
       <button
         onClick={() => { set(isAdmin ? 'admin' : 'dashboard'); onNavigate?.() }}
-        className="flex h-16 items-center gap-2.5 border-b px-5 hover:bg-muted/50 transition-colors text-left"
+        className="group flex h-16 items-center gap-2.5 border-b px-5 hover:bg-muted/60 transition-all text-left"
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-emerald text-white shadow-lg shadow-emerald-500/20">
-          <Wallet className="h-5 w-5" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background shadow-md ring-1 ring-border/50 transition-transform group-hover:scale-110 group-hover:shadow-lg">
+          <img src="/lifeos-logo.svg" alt="LifeOS" className="h-7 w-7" />
         </div>
-        <div className="leading-tight">
+        <div className="leading-tight transition-colors group-hover:text-primary">
           <p className="text-sm font-bold tracking-tight">LifeOS</p>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
             {isAdmin ? 'Yönetim' : 'Yaşam Yönetimi'}

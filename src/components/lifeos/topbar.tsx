@@ -146,14 +146,18 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                 Admin Panel
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={() => set('settings')}>
-              <UserIcon className="h-4 w-4 mr-2" />
-              Profil & Ayarlar
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => set('ai-insights')}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              AI Asistan
-            </DropdownMenuItem>
+            {role !== 'admin' && (
+              <DropdownMenuItem onClick={() => set('settings')}>
+                <UserIcon className="h-4 w-4 mr-2" />
+                Profil & Ayarlar
+              </DropdownMenuItem>
+            )}
+            {role !== 'admin' && (
+              <DropdownMenuItem onClick={() => set('ai-insights')}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                AI Asistan
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"

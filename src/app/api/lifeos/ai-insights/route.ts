@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { ok, fail, readBody } from '@/lib/lifeos'
-import { getStore, getSessionUser } from '@/lib/store'
+import { getStore, getSessionUser, getDemoAiQuotaStatus, incrementDemoAiQuota } from '@/lib/store'
 import { db } from '@/lib/db'
 import ZAI from 'z-ai-web-dev-sdk'
 
@@ -99,8 +99,20 @@ export async function POST(req: NextRequest) {
     const sessionUser = await getSessionUser()
     if (!sessionUser) return fail('Yetkisiz', 401)
 
-    // Hak kontrolü — demo hariç
-    if (sessionUser.role !== 'demo') {
+    // Admin AI kullanamaz
+    if (sessionUser.role === 'admin') {
+      return fail('Admin için AI analizi devre dışı', 403)
+    }
+
+    // Demo için memory'de hak kontrolü
+    if (sessionUser.role === 'demo') {
+      const status = getDemoAiQuotaStatus(`demo-${sessionUser.id}`)
+      if (!status.canUse) {
+        return fail(`Günlük AI soru hakkınızı doldurdunuz (${status.usedToday}/${status.limit}).`, 429)
+      }
+      incrementDemoAiQuota(`demo-${sessionUser.id}`)
+    } else {
+      // Hak kontrolü — normal kullanıcılar (DB)
       const user = await db.user.findUnique({ where: { id: sessionUser.id } })
       if (!user) return fail('Kullanıcı bulunamadı', 404)
 

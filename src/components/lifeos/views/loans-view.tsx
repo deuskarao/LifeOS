@@ -135,9 +135,17 @@ export function LoansView() {
   }
 
   const loans = data ?? []
-  const totalDebt = loans.reduce((s, l) => s + (l.remainingAmount || 0), 0)
+  // Calculate effective remaining debt: use DB value if present, else fall back to calculation
+  const loansWithCalc = loans.map((l) => {
+    const installmentsLeft = Math.max(0, (l.installmentsTotal || 0) - (l.installmentsPaid || 0))
+    const calculatedRemaining = installmentsLeft * (l.monthlyPayment || 0)
+    const isAutoCalculated = l.remainingAmount <= 0 && calculatedRemaining > 0
+    const displayRemaining = l.remainingAmount > 0 ? l.remainingAmount : calculatedRemaining
+    return { ...l, calculatedRemaining, displayRemaining, isAutoCalculated }
+  })
+  const totalDebt = loansWithCalc.reduce((s, l) => s + l.displayRemaining, 0)
   const monthlyTotal = loans.reduce((s, l) => s + (l.monthlyPayment || 0), 0)
-  const activeCount = loans.filter((l) => l.remainingAmount > 0).length
+  const activeCount = loansWithCalc.filter((l) => l.displayRemaining > 0).length
   const avgInterest =
     loans.length > 0 ? loans.reduce((s, l) => s + (l.interestRate || 0), 0) / loans.length : 0
 
@@ -194,9 +202,10 @@ export function LoansView() {
         />
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-          {loans.map((l, i) => {
+          {loansWithCalc.map((l, i) => {
             const progress = l.installmentsTotal > 0 ? (l.installmentsPaid / l.installmentsTotal) * 100 : 0
-            const isComplete = l.remainingAmount <= 0 || progress >= 100
+            const isComplete = l.displayRemaining <= 0 || progress >= 100
+            const differs = l.remainingAmount > 0 && l.calculatedRemaining > 0 && l.remainingAmount !== l.calculatedRemaining
             return (
               <motion.div
                 key={l.id}
@@ -208,7 +217,7 @@ export function LoansView() {
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h4 className="truncate font-semibold">{l.loanName}</h4>
                           <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${CATEGORY_BADGE[l.category] || 'bg-muted text-muted-foreground'}`}>
                             {l.category}
@@ -216,6 +225,11 @@ export function LoansView() {
                           {isComplete && (
                             <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
                               Tamamlandı
+                            </Badge>
+                          )}
+                          {l.isAutoCalculated && (
+                            <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px]">
+                              Otomatik hesaplandı
                             </Badge>
                           )}
                         </div>
@@ -237,7 +251,17 @@ export function LoansView() {
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <div>
                         <p className="text-xs text-muted-foreground">Kalan Borç</p>
-                        <p className="text-xl font-bold tracking-tight">{formatCurrency(l.remainingAmount)}</p>
+                        <p className="text-xl font-bold tracking-tight">{formatCurrency(l.displayRemaining)}</p>
+                        {differs && (
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            (Hesaplanan: <span className="font-medium text-amber-600 dark:text-amber-400">{formatCurrency(l.calculatedRemaining)}</span>)
+                          </p>
+                        )}
+                        {l.isAutoCalculated && (
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            DB: <span className="font-medium">{formatCurrency(l.remainingAmount)}</span>
+                          </p>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Aylık Taksit</p>

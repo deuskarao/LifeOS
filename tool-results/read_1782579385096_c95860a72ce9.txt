@@ -1,0 +1,457 @@
+     1→# LifeOS - Worklog
+     2→
+     3→Bu dosya tüm agent'ların ortak çalışma kaydıdır. Her agent kendi bölümünü **append** modunda ekler.
+     4→
+     5→---
+     6→Task ID: 1
+     7→Agent: main
+     8→Task: LifeOS projesinin temel altyapısını kurmak (Prisma schema, db, seed, paylaşılan lib)
+     9→
+    10→Work Log:
+    11→- Orijinal LifeOS repo'su (React+Vite+Supabase) incelendi
+    12→- Prisma schema oluşturuldu: BankAccount, CreditCard, Loan, Asset, Income, Expense, Property, RentalContract, Vehicle, VehicleFuel, VehicleService
+    13→- `bun run db:push` ile şema DB'ye push edildi
+    14→- `src/lib/lifeos.ts` paylaşılan yardımcılar (para formatı, API response, banka listeleri, kategoriler) oluşturuldu
+    15→- `prisma/seed.ts` ile gerçekçi Türk demo verileri yüklendi (5 banka, 4 kart, 3 kredi, 8 varlık, 15 gelir, 108 gider, 3 mülk, 2 kontrat, 2 araç, 16 yakıt, 6 servis)
+    16→- Dev server 3000 portunda çalışıyor
+    17→
+    18→Stage Summary:
+    19→- Database hazır ve seed'li
+    20→- Paylaşılan utilities: formatCurrency, formatCompact, formatDate, ok/fail API helpers, TURKISH_BANKS, EXPENSE_CATEGORIES, INCOME_CATEGORIES, ASSET_TYPES, LOAN_CATEGORIES, PROPERTY_TYPES, VEHICLE_FUEL_TYPES, SERVICE_TYPES
+    21→- Sonraki adım: app shell + API rotaları + görünümler (paralel subagent'lar ile)
+    22→
+    23→---
+    24→Task ID: 5-d
+    25→Agent: full-stack-developer (rental+vehicles)
+    26→Task: Build rental & vehicles views
+    27→
+    28→Work Log:
+    29→- Read worklog.md, lifeos.ts (utilities), api-client.ts (useCrud/api), dashboard-view.tsx (style reference), chart-card.tsx, and shared components (stat-card, page-header, empty-state, confirm-dialog, form-dialog, money-input).
+    30→- Read API routes for properties, contracts, vehicles, vehicles/[id]?include=records, fuel, services to confirm field shapes and REST endpoints.
+    31→- Inspected available shadcn/ui components (tabs, sheet, table, select, dropdown-menu, badge, etc.) for proper usage.
+    32→- Wrote `src/components/lifeos/views/rental-view.tsx` — tabbed (Mülkler / Kontratlar) view with always-visible stats row (Toplam Mülk Değeri, Aktif Kira, Aylık Kira Geliri, Yıllık Getiri %), property card grid with type/status/size/rooms badges and currentValue/purchasePrice/monthlyRent, contracts table with property+tenant+date range+deposit+status, dropdown Edit/Delete menus, FormDialogs for both tabs, ConfirmDialogs, framer-motion stagger.
+    33→- Wrote `src/components/lifeos/views/vehicles-view.tsx` — tabbed (Araçlar / Yakıt / Servis) view with stats row (Araç Sayısı, Toplam Km, Bu Yıl Yakıt, Bu Yıl Servis), vehicle card grid with color dot + plate badge + fuel badge + km + record counts, fuel & service record tables, "Detay" Sheet that lazily fetches `/api/lifeos/vehicles/[id]?include=records` via useQuery and shows recent fuel & service records, color picker (preset swatches + hex input), all FormDialogs/ConfirmDialogs with toast feedback, framer-motion stagger.
+    34→- Used `useCrud<T>('resource')` for properties, contracts, vehicles, fuel, services. Property select in contracts form reuses the same query (shared cache via ['properties'] key).
+    35→- Turkish labels, dark-theme friendly oklch badge colors, responsive grids, max-h scrollable tables with `overflow-y-auto`, money-input for amounts, dateInput helper for `<input type="date">`.
+    36→- Lint passes clean on both authored files (pre-existing errors in assets-view.tsx, settings-view.tsx, api-client.ts belong to other agents and are out of scope per task constraints).
+    37→
+    38→Stage Summary:
+    39→- Files modified:
+    40→  - `src/components/lifeos/views/rental-view.tsx` (full implementation, ~900 lines)
+    41→  - `src/components/lifeos/views/vehicles-view.tsx` (full implementation, ~1100 lines)
+    42→- Features delivered:
+    43→  - RentalView: 2 tabs (Mülkler, Kontratlar), 4 always-visible StatCards, property card grid with status/type badges & edit/delete dropdown, contracts table with tenant/property/date/deposit columns & edit/delete dropdown, FormDialog for both entities with full field sets, ConfirmDialog for both.
+    44→  - VehiclesView: 3 tabs (Araçlar, Yakıt, Servis), 4 StatCards (year-to-date fuel/service cost), vehicle card grid with color dot + plate + fuel badge + counts, detail Sheet with lazy-loaded recent records via `?include=records`, fuel & service tables with edit/delete dropdowns, FormDialogs for vehicle/fuel/service with full field sets including vehicle select, color preset picker, fuel/service type selects, ConfirmDialogs for all three.
+    45→- Both views use the established mutation pattern (useState form → mutateAsync → toast → close dialog) and invalidate via useCrud (which also refreshes ['dashboard'] and ['reports']).
+    46→
+    47→---
+    48→Task ID: 5-b
+    49→Agent: full-stack-developer (finance views A)
+    50→Task: Build bank-accounts, credit-cards, loans, assets views
+    51→
+    52→Work Log:
+    53→- Tüm paylaşılan referans dosyaları okundu (lifeos.ts, api-client.ts, dashboard-view, stat-card, page-header, empty-state, confirm-dialog, form-dialog, money-input, chart-card) ve mevcut pattern'ler benimsendi
+    54→- 4 API route (bank-accounts, credit-cards, loans, assets) incelendi, Prisma model alanları ile eşleştirildi
+    55→- bank-accounts-view.tsx: bankaya göre gruplama, renk accent'li kartlar, IBAN truncate + kopyalama, hedef tutar gösterimi, 8 renk preset picker, TURKISH_BANKS select'i, hesap türü badge'leri (Vadesiz/Vadeli/Birikim/Nakit) ile 4 StatCard
+    56→- credit-cards-view.tsx: gradient arka planlı gerçekçi kart görseli (linear-gradient + dekoratif daireler), kullanım oranı renk-kodlu progress bar (yeşil<60%, sarı<85%, kırmızı>=85%), kesim/son ödeme günü gösterimi, Visa/Mastercard/Troy badge
+    57→- loans-view.tsx: taksit ilerleme barı (installmentsPaid/installmentsTotal), kategori badge (İhtiyaç/Konut/Taşıt/Ticari), "Tamamlandı" badge, anapara/faiz/tarih özet satırı, dateInputValue helper'ı ile ISO→yyyy-MM-dd dönüşümü
+    58→- assets-view.tsx: Recharts PieChart (donut) ile varlık dağılımı, tür bazında özet panel (renkli progress bar + yüzde), tür bazında gruplandırılmış kart listesi, toplam değer otomatik hesaplama (qty*price) form içinde canlı önizleme
+    59→- Tüm view'lar: PageHeader + Ekle butonu, useCrud hook, FormDialog (useState form), ConfirmDialog, EmptyState, motion.div stagger animasyonları (initial opacity:0 y:8), Skeleton loading, sonner toast bildirimleri, Türkçe etiketler, dark-theme semantic renkler
+    60→
+    61→Stage Summary:
+    62→- Oluşturulan dosyalar (4 view, hepsi production-ready):
+    63→  • src/components/lifeos/views/bank-accounts-view.tsx (~360 satır)
+    64→  • src/components/lifeos/views/credit-cards-view.tsx (~360 satır)
+    65→  • src/components/lifeos/views/loans-view.tsx (~370 satır)
+    66→  • src/components/lifeos/views/assets-view.tsx (~430 satır)
+    67→- Lint temiz (kalan tek hata api-client.ts'de pre-existing react-hooks/preserve-manual-memoization — bu dosya benim scope'umda değil)
+    68→- Dev server log'u doğrulandı: tüm API route'lar 200 dönüyor, derleme başarılı
+    69→- Pattern: dashboard-view ile uyumlu (StatCard, ChartCard, motion, formatCurrency, formatCompact, formatDate)
+    70→
+    71→---
+    72→Task ID: 5-c
+    73→Agent: full-stack-developer (finance views B)
+    74→Task: Build income, expenses, reports views
+    75→
+    76→Work Log:
+    77→- Read project context: worklog.md, lifeos.ts, api-client.ts, dashboard-view.tsx, chart-card.tsx, stat-card/page-header/empty-state/confirm-dialog/form-dialog/money-input components, income/expenses/reports API routes, Prisma schema (Income/Expense models).
+    78→- Built IncomeView: useCrud<Income>('income') for mutations + useQuery(['income', months]) for filtered list. Month filter Select (Bu Ay/Son 3 Ay/Son 6 Ay) controls ?months= param. 4 StatCards (Bu Ay Gelir, Dönem Toplam, Tekrarlı Gelir sayısı, En Büyük Kaynak). BarChart for category breakdown. List grouped by month with section headers showing group totals. Each item is a card with category badge (color-coded), recurring badge with RefreshCw icon, source name, date+notes, green amount, hover edit/delete buttons. FormDialog with source/amount/currency/category/date/recurring switch/notes fields. ConfirmDialog for delete. framer-motion stagger on items. toast feedback for CRUD ops.
+    79→- Built ExpensesView: same architecture with useCrud<Expense>('expenses'). 4 StatCards (Bu Ay Gider, Dönem Toplam, Günlük Ortalama son 30 gün, En Büyük Kategori). Vertical BarChart for category breakdown (top 8) with per-category colors. List grouped by month. Each item shows category badge (color-coded with EXPENSE_CATEGORY_COLORS map), paymentMethod badge (Nakit/Kart/Havale), date+notes, red amount. FormDialog with category/amount/currency/date/paymentMethod/notes fields.
+    80→- Built ReportsView (read-only, no CRUD): useQuery(['reports']) fetches /api/lifeos/reports. Two action buttons: "Excel'e Aktar" (CSV export with BOM for UTF-8 Excel compatibility, sections for summary/monthly trend/categories/property performance) and "PDF İndir" (window.print()). 5 StatCards (Bu Yıl Gelir, Bu Yıl Gider, Yıllık Tasarruf, Tasarruf Oranı %, Geçen Yıla Göre with year-over-year change badge). 4 charts: Monthly trend BarChart (12 months with income/expense/net grouped bars + Legend), Income by category PieChart donut, Expense by category PieChart donut, Net worth breakdown horizontal BarChart (positive bars for Banka/Varlıklar/Emlak, negative for Kredi/Kart Borcu, ReferenceLine at x=0). Property performance Table with name/type/currentValue/monthlyRent/annualRent/yieldRate%/appreciation% (green if positive, red if negative) and status badge. Vehicle cost Card with fuelTotal/serviceTotal/total + BarChart fuelByVehicle. ReportsData interface defined exactly matching the route return shape.
+    81→- Used dateInput helper for ISO→YYYY-MM-DD conversion in date inputs. Form sync uses useRef + useEffect pattern to detect new initial values.
+    82→- Avoided indigo/blue colors — used emerald/teal/violet/amber/rose/pink palette. Turkish labels throughout. Skeletons for loading states. EmptyState when no records.
+    83→- Lint: no errors on my 3 view files (1 pre-existing error in api-client.ts from another agent's useCallback memoization, not my concern).
+    84→- Dev server logs confirm all 3 views render and the income/expenses?months= N queries return 200 across all filter values.
+    85→
+    86→Stage Summary:
+    87→- Files modified (3 view files + worklog append):
+    88→  - src/components/lifeos/views/income-view.tsx — IncomeView + IncomeFormDialog
+    89→  - src/components/lifeos/views/expenses-view.tsx — ExpensesView + ExpenseFormDialog
+    90→  - src/components/lifeos/views/reports-view.tsx — ReportsView + exportCsv helper + SummaryRow sub-component
+    91→- Features: month-filtered CRUD for income & expenses, aggregated year-over-year reports with PDF print + CSV export, 7 charts total (1 income bar, 1 expense horizontal bar, 1 monthly trend grouped bar, 2 donut pies, 1 net worth horizontal bar with negatives, 1 fuel-by-vehicle bar), property performance table with color-coded yield/appreciation, vehicle cost breakdown card.
+    92→- Reuses: PageHeader, StatCard, EmptyState, ConfirmDialog, FormDialog, MoneyInput, ChartCard + CHART_COLORS/CHART_COLOR_ARRAY/chartTooltipStyle/gridStroke, useCrud, api, formatCurrency/formatCompact/formatDate, INCOME_CATEGORIES/EXPENSE_CATEGORIES, all shadcn/ui primitives (Select, Switch, Input, Label, Textarea, Badge, Button, Skeleton, Table, Card).
+    93→
+    94→---
+    95→Task ID: 6
+    96→Agent: full-stack-developer (AI insights + settings)
+    97→Task: Build ai-insights & settings views
+    98→
+    99→Work Log:
+   100→- Worklog, lifeos.ts, api-client.ts, dashboard-view.tsx, page-header/stat-card/empty-state/form-dialog, ai-insights API route ve shadcn UI component'leri (tabs/switch/radio-group/avatar/alert-dialog/textarea/card/badge) okundu
+   101→- `src/components/lifeos/views/ai-insights-view.tsx` overwrite edildi (459 satır)
+   102→- `src/components/lifeos/views/settings-view.tsx` overwrite edildi (693 satır)
+   103→- AI Insights: gradient-emerald hero kart, opsiyonel soru Textarea + 4 hazır soru chip'i, "Analiz Et" primary buton, useMutation ile POST /api/lifeos/ai-insights
+   104→- AI Insights loading: pulse animasyonlu Sparkles + 3 nokta wave + skeleton'lar
+   105→- AI Insights error: rose renkli AlertOctagon kartı + "Tekrar Dene" butonu
+   106→- AI Insights results: summary kart (sol primary stripe + Sparkles), insights grid (md:2 kolon, type'a göre renkli: success→emerald, warning→amber, info→sky, danger→rose; CheckCircle2/AlertTriangle/Info/AlertOctagon icon + category badge), recommendations numbered list (Lightbulb + amber accent)
+   107→- framer-motion ile staggered reveal (insight'lar 80ms gecikmeli, recommendations 70ms gecikmeli)
+   108→- Settings: Tabs (Profil/Görünüm/Para Birimi/Bildirimler/Veri) + Türkçe etiketler
+   109→- Settings Profil: Avatar (AY fallback), name/email(disabled)/phone Input, Pro plan badge, Kaydet butonu (sonner toast)
+   110→- Settings Görünüm: 3 büyük kart (Açık/Koyu/Sistem), useTheme ile setTheme, aktif kart primary border + Check badge (motion layoutId), useSyncExternalStore ile mounted tespiti (lint'te setState-in-effect hatası vermeyecek şekilde)
+   111→- Settings Para Birimi: RadioGroup TRY/USD/EUR/GBP, lazy useState ile localStorage'tan okuma (lifeos_currency key), Kaydet → toast
+   112→- Settings Bildirimler: 4 Switch (rentReminder, cardDebtAlert, budgetLimit, aiWeeklyReport), localStorage'a yazma (lifeos_notifications key)
+   113→- Settings Veri: "Dışa Aktar" → 11 resource paralel fetch + Blob + download (lifeos-export-{date}.json), "Demo Sıfırla" → toast + window.location.reload(), "Hesabı Sil" → AlertDialog confirm + destructive button
+   114→- Lint: kendi dosyalarım temiz (api-client.ts'de pre-existing useCallback memoization uyarısı var, o task 1'den geliyor)
+   115→- AI insights endpoint test edildi (POST {} → 200, JSON summary+insights+recommendations dönüyor)
+   116→
+   117→Stage Summary:
+   118→- Files: src/components/lifeos/views/ai-insights-view.tsx, src/components/lifeos/views/settings-view.tsx
+   119→- Features: AI finansal asistan (mutation + skeleton + error + insight grid + recommendations + staggered motion), 5-tab settings (profile/appearance/currency/notifications/data) with localStorage persistence, theme toggle, full JSON export, danger zone with AlertDialog
+   120→- Premium look: gradient-emerald hero, motion layoutId animations, color-coded insight cards, sonner rich toasts
+   121→- Turkish labels throughout, responsive (mobile-first, sm:/lg: breakpoints)
+   122→
+   123→---
+   124→Task ID: 7
+   125→Agent: main
+   126→Task: Lint kontrolü + Agent Browser ile uçtan uca doğrulama
+   127→
+   128→Work Log:
+   129→- api-client.ts React Compiler memoizasyon lint hatası düzeltildi (useCallback kaldırıldı)
+   130→- `bun run lint` temiz geçiyor (0 hata)
+   131→- Bank accounts view'da varsayılan bankName ("İş Bankası") eklendi (UX iyileştirmesi)
+   132→- Agent Browser ile uçtan uca test:
+   133→  - Dashboard render: KPI'lar gerçek verilerle (₺250.730 banka, ₺976.485 varlık, ₺13.800.000 emlak, ₺1.093.100 borç)
+   134→  - Sidebar navigasyon: 12 section arası geçiş çalışıyor
+   135→  - Bank Accounts: gruplu kartlar, IBAN maskeli, create formu çalışıyor ("Hesap eklendi" toast + dialog kapandı + yeni hesap listede)
+   136→  - Credit Cards, Loans, Assets, Income, Expenses, Reports: hepsi render oluyor
+   137→  - Rental: mülk + kontrat tab'ları çalışıyor
+   138→  - Vehicles: araç/yakıt/servis tab'ları gerçek sayımla (2/16/6)
+   139→  - AI Insights: "Analiz Et" tıklandı → 6 içgörü + öneriler üretildi (LLM entegrasyonu çalışıyor)
+   140→  - Settings: 5 tab (Profil, Görünüm, Para Birimi, Bildirimler, Veri)
+   141→  - Tema değişimi (dark↔light) çalışıyor
+   142→  - Mobil responsive (375x812): hamburger menü, tek sütun layout
+   143→  - Sticky footer: hem kısa hem uzun içerikte doğru (desktop footerTop=851/winH=900; mobil bodyH=1321 > viewport, footer push'lanıyor)
+   144→  - Console: 0 hata, 0 uyarı
+   145→  - Tüm API rotaları 200 dönüyor
+   146→
+   147→Stage Summary:
+   148→- LifeOS production-ready, tamamen çalışır durumda
+   149→- 12 modül, 11 CRUD API + 2 aggregate API + 1 AI API
+   150→- Türkçe arayüz, dark/light tema, responsive, AI destekli finansal analiz
+   151→- Orijinal React+Vite+Supabase projesi → Next.js 16 + TypeScript + Prisma + shadcn/ui ile profesyonelleştirildi
+   152→
+   153→---
+   154→Task ID: 8
+   155→Agent: main
+   156→Task: Bildirim sistemini çalışır hale getir + Supabase entegrasyonu
+   157→
+   158→Work Log:
+   159→- `/api/lifeos/notifications` API rotası oluşturuldu — backend'de gerçek finansal verilerden 7 bildirim tipi hesaplar:
+   160→  • Kart ödeme günü yaklaşıyor/geçti (dueDay bazlı, 7 gün önceden)
+   161→  • Yüksek kart limit kullanımı (>85%)
+   162→  • Kredi taksit hatırlatma + kredi sonu yaklaşıyor
+   163→  • Kira sözleşme bitişi (60 gün içinde) + boş mülk uyarısı
+   164→  • Bütçe aşımı (gider > gelir) + düşük tasarruf oranı (<10%)
+   165→  • Düşük banka bakiyesi (<5000₺)
+   166→  • Araç servis zamanı (6+ ay veya 10000+ km)
+   167→- `src/lib/notification-prefs.ts` — useSyncExternalStore ile localStorage-backed state:
+   168→  • useNotificationPrefs (4 tercih: paymentReminders, cardDebtAlerts, budgetLimits, weeklyReport)
+   169→  • useReadNotifications (okundu bildirim ID'leri)
+   170→  • Stable snapshot cache (sonsuz re-render döngüsü önleniyor)
+   171→  • Cross-tab storage events + same-tab custom events
+   172→- `src/components/lifeos/notifications-bell.tsx` — Popover bildirim paneli:
+   173→  • Okunmamış sayı rozeti (animate-pulse)
+   174→  • Tipe göre renkli ikonlar (payment/card/debt/rental/budget/balance/vehicle)
+   175→  • Severity dot (high=rose, medium=amber, low=sky)
+   176→  • "Tümünü okundu işaretle" butonu
+   177→  • Bildirime tıklayınca ilgili sayfaya navigasyon
+   178→  • 1.5 sn sonra otomatik okundu işaretleme
+   179→  • 60 sn'de bir otomatik yenileme (refetchInterval)
+   180→  • Boş durum: "Her şey yolunda!" ekranı
+   181→- Topbar'daki statik Bell butonu → NotificationsBell bileşeni ile değiştirildi
+   182→- Settings view NotificationsTab güncellendi — useNotificationPrefs hook kullanıyor, 4 toggle + bildirim tipleri listesi
+   183→- Supabase entegrasyonu:
+   184→  • `prisma/schema.supabase.prisma` — PostgreSQL provider + @@map tablo isimleri
+   185→  • `.env.example` — Supabase connection string talimatları
+   186→  • Ana schema'ya Supabase geçiş yorumu eklendi
+   187→
+   188→Test (Agent Browser):
+   189→- Bell badge "3" gösteriyor (3 okunmamış: 2 kart overdue + 1 payment due)
+   190→- Panele tıklayınca 3 bildirim listelendi (gerçek veriler: Maximum ₺3.250 7 gün gecikti, Bonus ₺8.420 4 gün gecikti, Axess ₺15.630 0 gün)
+   191→- Bildirime tıklayınca Kredi Kartları sayfasına gitti
+   192→- Settings'te "Kart borcu uyarıları" kapatılınca badge anında 3→1'e düştü (useSyncExternalStore senkron)
+   193→- Panelde sadece "Axess ödemesi yaklaşıyor" kaldı (payment tipi filtrelenmedi)
+   194→- 0 console hatası, lint temiz
+   195→
+   196→Stage Summary:
+   197→- Bildirimler tamamen çalışıyor: backend hesaplama + frontend panel + prefs senkronizasyon
+   198→- Supabase için hazır: schema.supabase.prisma + .env.example + talimatlar
+   199→- Kullanıcı Supabase'e geçmek için: cp prisma/schema.supabase.prisma prisma/schema.prisma + .env DATABASE_URL + bun run db:push
+   200→
+   201→---
+   202→Task ID: 9
+   203→Agent: main
+   204→Task: Supabase + Auth + Admin Panel + Demo Memory Mode
+   205→
+   206→Work Log:
+   207→- Prisma schema PostgreSQL'e geçirildi, tüm modellere userId eklendi (User modeli dahil)
+   208→- .env Supabase bilgileriyle güncellendi (şifre URL-encoded: , → %2C, / → %2F)
+   209→- `bun run db:push --force-reset` ile şema Supabase'e pushlandı
+   210→- NextAuth.js credentials provider kuruldu (bcryptjs ile şifre hashleme)
+   211→- 3 seed kullanıcı: admin@lifeos.app/admin123, demo@lifeos.app/demo123, ahmet@lifeos.app/user123
+   212→- `src/lib/store.ts` — data store abstraction:
+   213→  • getStore() session'a göre Prisma veya Memory store döndürür
+   214→  • Demo memory store: server-side Map<sessionId, DemoData>, seed'li demo verisi
+   215→  • Prisma store: Supabase DB, admin tüm kullanıcıların verisini görür
+   216→  • 11 resource tipi için unified interface (list/get/create/update/delete)
+   217→- NextAuth signOut event'inde demo memory store otomatik temizlenir (veriler sıfırlanır)
+   218→- Tüm 22 API rotası getStore() pattern'ine migrate edildi (bank-accounts, credit-cards, loans, assets, income, expenses, properties, contracts, vehicles, fuel, services + dashboard, reports, notifications, ai-insights, admin)
+   219→- Login page: email/şifre formu + 3 hızlı giriş butonu (Admin/Demo/User)
+   220→- Auth gate: `/` rotasında session kontrolü, login değilse LoginView göster
+   221→- Topbar: session'dan user info, role badge (DEMO/ADMIN), logout butonu
+   222→- Sidebar: admin rolü için "Admin Panel" bölümü görünür
+   223→- Admin Panel view: sistem istatistikleri (toplam kullanıcı, net değer, kayıt sayısı), kaynak dağılımı grafiği, son 7 gün aktivite, kullanıcı listesi (her kullanıcının net değeri, kayıt sayıları, rol badge)
+   224→- Dashboard döngüsel JSON hatası düzeltildi (properties serialize edilirken contracts sadeleştirildi)
+   225→
+   226→Test (Agent Browser):
+   227→- Login sayfası render oluyor (email/şifre + 3 hızlı giriş butonu)
+   228→- Demo login → dashboard açıldı, "DK Demo Kullanıcı" + "Demo Modu" + "DEMO" rozeti, demo verisi yüklü (₺3.423.920 net değer)
+   229→- Demo logout → login sayfasına dönüldü, demo memory store temizlendi
+   230→- Demo tekrar login → veriler yeniden seed'lendi (aynı ₺3.423.920) — sıfırlama çalışıyor
+   231→- Admin login → "Y Yönetici" + "ADMIN" rozeti, sidebar'da Admin Panel linki, DB verisi (₺31.268.230 net değer — tüm kullanıcıların toplamı)
+   232→- Admin Panel açıldı: 3 kullanıcı listesi, toplam net değer ₺27.8M, kaynak dağılımı grafiği, son aktivite
+   233→- User login → "Ahmet Yılmaz" + "Kullanıcı", kendi DB verisi (₺15.6M — admin'den farklı, sadece kendi verisi)
+   234→- 0 console hatası, lint temiz, tüm API rotaları 200
+   235→
+   236→Stage Summary:
+   237→- Supabase PostgreSQL aktif (aws-1-ap-southeast-2)
+   238→- 3 kullanıcı tipi: admin (DB tüm veri), demo (memory, logout'ta sıfırlanır), user (DB kendi verisi)
+   239→- Admin panel: kullanıcı yönetimi + sistem istatistikleri
+   240→- Demo verileri DB'ye YAZILMIYOR — server-side memory'de, çıkışta otomatik temizleniyor
+   241→- NextAuth JWT session, role + id token'da taşınıyor
+   242→
+   243→---
+   244→Task ID: reports-rewrite
+   245→Agent: full-stack-developer
+   246→Task: Rewrite reports view with date range + real PDF export + KPI fix
+   247→
+   248→Work Log:
+   249→- Read worklog.md for project context, the new /api/lifeos/reports route (now supports ?preset= and ?from=&to=, returns period + summary with periodIncome/prevIncome/periodExpense/prevExpense/periodSavings/savingsRate/incomeChange/expenseChange), the current reports-view.tsx (window.print() based, old field names like thisYearIncome), dashboard-view.tsx (style reference), and StatCard/PageHeader/ChartCard shared components.
+   250→- Verified jsPDF + jspdf-autotable are installed in node_modules.
+   251→- Completely rewrote /home/z/my-project/src/components/lifeos/views/reports-view.tsx (~830 lines):
+   252→  • New ReportsData interface matches the new API exactly: period{from,to,prevFrom,prevTo}, summary{periodIncome, prevIncome, periodExpense, prevExpense, periodSavings, savingsRate, incomeChange, expenseChange, netWorth, bankTotal, assetTotal, propertyTotal, loanDebt, cardDebt, fuelTotal, serviceTotal, vehicleTotalCost}, charts{monthlyTrend, incomeByCategory, expenseByCategory, fuelByVehicle, netWorthBreakdown}, propertyStats[].
+   253→  • Date range selector at top (Card with two rows): preset buttons (Bu Ay, Son 3 Ay, Son 6 Ay, Bu Yıl, Geçen Yıl, Tümü) + custom from/to date inputs with "Uygula" button. State separated into input (customFrom/customTo) and applied (appliedFrom/appliedTo) so user types then clicks Apply. Validates: both dates required, from ≤ to (else toast error).
+   254→  • useQuery queryKey includes [preset, appliedFrom, appliedTo] → refetches automatically on any change. Query string built via buildQuery(): ?preset=X or ?from=YYYY-MM-DD&to=YYYY-MM-DD when preset==='custom'.
+   255→  • Active period indicator below selector: Badge with preset label + formatted date range (uses formatDate).
+   256→  • Fixed KPI cards layout: grid-cols-2 md:grid-cols-3 lg:grid-cols-5 — built custom CompactKpi component (smaller than StatCard) with text-[10px] title, text-lg value (not 2xl), truncate on both, h-9 icon box (vs h-11), 10px change badge. Cards: Dönem Geliri (with incomeChange badge), Dönem Gideri (with expenseChange badge), Dönem Tasarrufu, Tasarruf Oranı %, Net Değer. No overflow on lg.
+   257→  • Real PDF export with jsPDF + jspdf-autotable: title "LifeOS Finansal Rapor", period label + creation date, then 5 autoTable sections — Özet (emerald header), Gider Kategorileri (rose), Gelir Kategorileri (sky), Aylık Trend (violet), Emlak Performansı (violet, only if data), Araç Yakıt Maliyeti (amber, only if data) + plain summary table. Footer page numbers on every page. Saves as lifeos-rapor-YYYY-MM-DD.pdf. Wrapped in try/catch with toast success/error.
+   258→  • Kept Excel CSV export — adapted field names to new shape (periodIncome/periodExpense/periodSavings/incomeChange/expenseChange/prevIncome/prevExpense etc.) and added Dönem + label to header row.
+   259→  • Charts adapted to new data shape: Monthly trend grouped BarChart (income/expense/net), Income PieChart donut, Expense PieChart donut, Net Worth horizontal BarChart with ReferenceLine at x=0 and color-coded cells, Property performance Table (motion.tr staggered), Vehicle cost Card with fuel/service/total summary + fuelByVehicle BarChart.
+   260→  • Loading skeleton: Card skeleton for date selector + 5 KPI skeletons in the new grid + chart skeletons.
+   261→  • framer-motion: CompactKpi cards fade-in y:10, property rows stagger 0.04s delay each.
+   262→  • Turkish labels throughout, semantic colors, dark-theme compatible (oklch accent colors, dark: variants), responsive (mobile-first 2 cols → 3 → 5).
+   263→  • Removed unused StatCard import (built custom CompactKpi instead).
+   264→
+   265→Stage Summary:
+   266→- Files modified:
+   267→  - src/components/lifeos/views/reports-view.tsx (full rewrite, ~830 lines)
+   268→- Features delivered:
+   269→  - Date range selector: 6 presets + custom from/to with Apply button, validated, query auto-refetches via queryKey dependency.
+   270→  - Fixed KPI cards: 5-across compact grid on lg, no overflow, smaller text (lg value, xs title), change badges from incomeChange/expenseChange percentages.
+   271→  - Real PDF export: jsPDF + jspdf-autotable with 6 sections (summary, expense cats, income cats, monthly trend, property perf, vehicle cost), footer page numbers, color-coded section headers, error-safe with toast.
+   272→  - CSV export adapted to new field names + label.
+   273→  - All charts adapted to new data shape (monthlyTrend, incomeByCategory, expenseByCategory, fuelByVehicle, netWorthBreakdown, propertyStats).
+   274→- Lint: 0 errors on the rewritten file (clean).
+   275→- Dev server log confirms: GET /api/lifeos/reports?preset=this-year 200, GET /api/lifeos/reports?preset=1m 200 — date range filtering working end-to-end.
+   276→- Named export ReportsView preserved.
+   277→
+   278→---
+   279→Task ID: settings-membership
+   280→Agent: full-stack-developer
+   281→Task: Add membership tab to settings with plan switching
+   282→
+   283→Work Log:
+   284→- Read worklog.md (project history), settings-view.tsx (current 5-tab impl), PUT /api/lifeos/users/[id]/level route (level change with demo guard), GET /api/lifeos/ai-quota route (returns level/canUseAi/usedToday/limit/remaining/isPremium), lib/lifeos.ts (getWealthClass returns {label,short,description,color,icon}), lib/api-client.ts (api.get/put + useCrud), dashboard route (kpis.netWorth + kpis.wealthClass), auth.ts (session.user has id/role/level via JWT callback).
+   285→- Updated imports in settings-view.tsx: added useSession (next-auth/react), useQuery/useMutation/useQueryClient (@tanstack/react-query), getWealthClass/formatCompact (lib/lifeos), Skeleton/Progress (shadcn/ui), new lucide icons (Crown, Sparkles, Lock, TrendingUp, TrendingDown, Minus, Shield, X).
+   286→- Inserted new TabsTrigger value="membership" with Crown icon between Bildirimler and Veri (6 tabs total now: Profil/Görünüm/Para Birimi/Bildirimler/Üyelik/Veri). Added matching TabsContent mapping to <MembershipTab />.
+   287→- Implemented MembershipTab: uses useSession() for user id/role/level; useQuery(['ai-quota']) for quota; useQuery(['dashboard']) for netWorth + wealthClass; useMutation for PUT /api/lifeos/users/{id}/level. onSuccess invalidates ['ai-quota'], shows Turkish toast (Premium üyeliğe yükseltildiniz! / Standart üyeliğe geçildi), and reloads page after 1s so JWT session refreshes. Demo/admin → always premium, canChangePlan=false.
+   288→- Current plan summary card: top accent bar (violet→emerald gradient for premium, muted for standard), plan badge + member-since, 3 stat tiles (Bugün AI kullanımı, Kalan hak, Durum) with Skeleton during loading, Progress bar with "Bugün: X/Y hak kullanıldı" label.
+   289→- Demo notice card (violet-tinted, Sparkles icon) when role==='demo' explaining premium features are active but data resets on logout.
+   290→- WealthClassCard: for premium/demo → shows actual class from dashboard.kpis.wealthClass (color-coded border + icon tile, label, net-worth compact badge, description). For standard → blurred preview overlay with Lock icon and "Premium'a Geç" upgrade CTA button that triggers levelMut.mutate('premium').
+   291→- WealthClassIcon helper maps icon string ('crown'/'trending-up'/'trending-down'/'check'/'minus') from getWealthClass to lucide components. WEALTH_COLOR_BORDER and WEALTH_ICON_COLOR maps translate color strings to tailwind class sets.
+   292→- Two PlanCards side-by-side (lg:grid-cols-2, stack on mobile): Standart (muted border, Ücretsiz/her zaman) and Premium (violet gradient top bar, ₺49/ay, ÖNERİLEN badge with Sparkles when not current). Each card has feature list with Check (included, emerald/primary) or X (not included, muted + line-through) icons. Current plan shows disabled "Mevcut Plan" button; non-current shows Yükselt/Düşür button (disabled when demo/admin with hint text). framer-motion initial/whileHover transitions.
+   293→- Turkish labels throughout, responsive (mobile-first, sm:/lg: breakpoints), existing Card/Button/Badge/Skeleton/Progress components reused. SettingsView named export preserved, existing 5 tabs untouched.
+   294→- bun run lint: 0 errors on the touched file. Dev server compiles cleanly (verified dev.log — /api/lifeos/ai-quota and /api/lifeos/dashboard both return 200).
+   295→
+   296→Stage Summary:
+   297→- Files modified: src/components/lifeos/views/settings-view.tsx (+~600 lines: new MembershipTab/PlanCard/WealthClassCard/WealthClassIcon + supporting types and constants), worklog.md (this entry).
+   298→- Features: 6-tab Settings (Üyelik added), live AI quota display, plan switching via PUT /api/lifeos/users/[id]/level, demo/admin guards (always premium, can't change), wealth-class reveal for premium users + locked CTA for standard users, framer-motion animated cards, Turkish labels, premium violet/emerald gradient styling.
+   299→- No breaking changes to Profil/Görünüm/Para Birimi/Bildirimler/Veri tabs or SettingsView export.
+   300→
+   301→---
+   302→Task ID: admin-rewrite
+   303→Agent: full-stack-developer
+   304→Task: Rewrite admin view with user CRUD + level management
+   305→
+   306→Work Log:
+   307→- Tüm bağlam dosyaları okundu: worklog.md, /api/lifeos/admin (system stats), /api/lifeos/admin/users (GET/POST), /api/lifeos/admin/users/[id] (PUT/DELETE), /api/lifeos/users/[id]/level (PUT level + ?action=reset-quota), mevcut admin-view.tsx, api-client.ts, tüm shared component'ler (stat-card, page-header, empty-state, confirm-dialog, form-dialog, chart-card), shadcn/ui primitives (tabs, table, switch, select, dropdown-menu, badge, avatar).
+   308→- ai-insights/route.ts incelendi: premium=5/gün, standard=1/gün, demo=sınırsız. Backend 24h reset kuralı client-side'a taşındı (getEffectiveAiUsed helper).
+   309→- mevcut topbar.tsx incelendi: useSession() → session.user.id (JWT token'dan geliyor), self-delete kontrolü için kullanıldı.
+   310→- `src/components/lifeos/views/admin-view.tsx` tamamen yeniden yazıldı (~770 satır):
+   311→  • Tabs component ile 2 sekme: "Genel Bakış" + "Kullanıcılar"
+   312→  • OverviewTab: mevcut içerik korundu — 4 StatCard (Toplam Kullanıcı/Net Değer/Kayıt/Borç), 4 MiniStat (Banka/Yatırımlar/Gelir/Gider), BarChart kaynak dağılımı, 4 ActivityCard son 7 gün, emerald sistem durumu kartı. /api/lifeos/admin'den çekiyor.
+   313→  • UsersTab: /api/lifeos/admin/users'dan AdminUser[] çekiyor. Üstte "Kullanıcı Ekle" butonu + kullanıcı sayısı.
+   314→  • Table: 7 kolon — Kullanıcı (avatar initials + name + email + SİZ badge), Rol (emerald/violet/sky badge), Seviye (amber PREMIUM / muted STANDART badge + Switch toggle), AI Kullanım (used/limit + renkli progress bar: yeşil<60%, amber<100%, rose=100%), Kayıt Sayısı (toplam + b/k/v breakdown), Kayıt Tarihi, Aksiyonlar (DropdownMenu).
+   315→  • Switch: checked=premium, demo kullanıcıda disabled, onCheckedChange → levelMut.mutate({id, level}).
+   316→  • DropdownMenu: Düzenle, AI Haklarını Sıfırla (demo'da disabled), separator, Sil (self'te disabled, destructive variant).
+   317→  • FormDialog: name/email/password/role select/level select. Edit modunda password opsiyonel (placeholder "••••••"). Validasyon: name+email zorunlu, password create modunda zorunlu ve >=6 karakter, edit modunda boş ise değiştirilmez.
+   318→  • ConfirmDialog: delete için, kullanıcı adı + tüm veriler silinecek uyarısı.
+   319→  • 5 mutation: createMut (POST), updateMut (PUT), deleteMut (DELETE), levelMut (PUT /level), resetQuotaMut (PUT /level?action=reset-quota). Hepsi invalidateAll() → ['admin-users'] + ['admin'].
+   320→  • sonner toast: başarı/hata bildirimleri tüm mutation'larda.
+   321→  • framer-motion: motion.tr ile satır stagger (delay i*0.04, opacity+y animasyonu).
+   322→  • Responsive: Table container `overflow-x-auto` (mobile yatay scroll), header+buton flex-col sm:flex-row.
+   323→  • Avatar initials helper, getEffectiveAiUsed helper (24h reset kuralı).
+   324→- Lint temiz (exit code 0, 0 hata/uyarı).
+   325→- Sadece admin-view.tsx ve worklog.md modifiye edildi. Başka dosyaya dokunulmadı.
+   326→
+   327→Stage Summary:
+   328→- Files modified:
+   329→  - `src/components/lifeos/views/admin-view.tsx` (tamamen yeniden yazıldı, ~770 satır)
+   330→  - `worklog.md` (bu entry append edildi)
+   331→  - `agent-ctx/admin-rewrite-full-stack-developer.md` (agent work record)
+   332→- Features delivered:
+   333→  - 2 tablı admin panel: Genel Bakış (mevcut sistem istatistikleri + chart + activity + status) ve Kullanıcılar (yeni CRUD tablosu)
+   334→  - Full user CRUD: create (FormDialog), edit (FormDialog), delete (ConfirmDialog), 5 mutation ile
+   335→  - Level management: Switch toggle standard↔premium (demo'da disabled), backend PUT /api/lifeos/users/[id]/level çağrısı
+   336→  - AI quota reset: dropdown'dan "AI Haklarını Sıfırla" → PUT /api/lifeos/users/[id]/level?action=reset-quota
+   337→  - AI kullanım görselleştirme: used/limit (3/5 veya 0/1) + renkli progress bar (yeşil/amber/rose), demo için "Sınırsız"
+   338→  - Self-delete protection: useSession ile currentUserId, dropdown'da Sil disabled + "SİZ" badge
+   339→  - Role badges: admin=emerald "ADMIN", demo=violet "DEMO", user=sky "USER"
+   340→  - Level badges: premium=amber Crown "PREMIUM", standard=muted "STANDART"
+   341→  - TanStack Query: queryClient invalidate ['admin-users'] + ['admin'] tüm mutation'larda
+   342→  - sonner toast bildirimleri (başarı/hata)
+   343→  - framer-motion stagger (motion.tr, 40ms delay)
+   344→  - Responsive table (overflow-x-auto), dark theme uyumlu, Türkçe etiketler
+   345→  - AdminView named export korundu
+   346→
+   347→---
+   348→Task ID: 10
+   349→Agent: main
+   350→Task: Major UX upgrade — login, auth, admin, AI gating, dashboard fix, reports, settings, PDF
+   351→
+   352→Work Log:
+   353→- Prisma schema: User'a level, aiQuestionsUsed, aiQuestionsResetAt eklendi + db:push
+   354→- 3 kullanıcı seviyesi: admin/premium, demo/premium, user/standard
+   355→- NextAuth: GoogleProvider eklendi (env var gerektirir), jwt callback level+role DB'den 10sn'de bir yeniler, trigger=update ile manuel yenileme
+   356→- Register API + login page redesign: Google + Demo butonu, Kayıt Ol formu, footer 2026
+   357→- AI erişim kontrolü: ai-quota API (GET durum), ai-insights API (POST hak kontrolü + artırma)
+   358→  • Standart: 1 hak/gün, Premium: 5 hak/gün, Demo: sınırsız
+   359→  • 24 saatte bir otomatik sıfırlama
+   360→- AI view: quota banner, blocked durumda upgrade promptu, premium/demo için "sınırsız" badge
+   361→- Sidebar: AI Asistan sadece premium/demo/admin'e görünür, standart user için "Premium'a Yükselt" banner
+   362→- Dashboard fix: monthlyNet artık BU AYın gelir-gider farkı (önceki yıllık toplamdı)
+   363→- Wealth class banner: getWealthClass() — Borçlu/Alt/Alt-Orta/Orta/Üst-Orta/Üst sınıf (Türkiye ekonomik sınıflandırması)
+   364→- Sidebar sticky (position: sticky, h-screen), logo tıklayınca dashboard'a gider
+   365→- Reports: tarih aralığı seçici (6 preset + custom from/to), KPI cardlar compact (5'li grid), gerçek PDF export (jsPDF + autotable, 6 tablo)
+   366→- Admin panel: 2 tab (Genel Bakış + Kullanıcılar), user CRUD, level toggle (switch), AI quota reset, self-delete koruması
+   367→- Settings: Üyelik tab (6 tab toplam), plan kartları (Standart/Premium), wealth class preview (premium'da açık, standart'ta blurred), level değişince session update + reload
+   368→- API rotaları: admin/users (GET/POST), admin/users/[id] (PUT/DELETE), users/[id]/level (PUT + ?action=reset-quota)
+   369→
+   370→Test (Agent Browser):
+   371→- Login: Google/Demo butonu + Kayıt Ol linki + footer 2026 ✓
+   372→- Demo login: dashboard açıldı, "Orta Sınıf" wealth class, aylık net ₺30.302 (bu ay) ✓
+   373→- Standart user login: AI Asistan gizli, "Yükselt" banner ✓
+   374→- Premium'a yükseltme: DB'ye yazıldı, reload sonrası AI Asistan göründü ✓
+   375→- Admin login: Admin Panel → Kullanıcılar tab, 3 kullanıcı listesi, level badge'leri, AI kullanım sayaçları ✓
+   376→- Reports: 6 tarih preset + custom range, PDF export "PDF raporu indirildi" toast ✓
+   377→- Sidebar: sticky (position: sticky), logo tıklayınca dashboard'a döndü ✓
+   378→- Wealth class: admin için "Üst Sınıf" (20M+), demo için "Orta Sınıf" (1-5M) ✓
+   379→- 0 console hatası, lint temiz
+   380→
+   381→Stage Summary:
+   382→- 3 katmanlı kullanıcı sistemi: admin (DB tüm veri), demo (memory, logout'ta sıfırlanır), user (DB kendi verisi)
+   383→- 2 üyelik seviyesi: standard (1 AI hak/gün), premium (5 AI hak/gün + AI Asistan + wealth class)
+   384→- Admin panel: tam kullanıcı CRUD + seviye yönetimi
+   385→- Reports: tarih aralığı + gerçek PDF export
+   386→- Dashboard: aylık net düzeltildi + finansal sınıf banner
+   387→- Sidebar: sticky + logo navigasyon
+   388→
+   389→---
+   390→Task ID: 11
+   391→Agent: main
+   392→Task: UX düzeltmeleri — footer, session, AI gizleme, admin-only, reports, dashboard
+   393→
+   394→Work Log:
+   395→- Footer: "Supabase ile güçlendirilmiştir" → "Tüm Hakları Saklıdır" (login + app-shell)
+   396→- Session: maxAge 10 dakika (600sn), client-side inaktivite timer (10dk sonra signOut), SessionProvider refetchInterval=60sn
+   397→- Standart kullanıcı AI tamamen gizli: sidebar'da yok, app-shell useEffect ile dashboard'a redirect, AI view'ında kilit ekranı (Premium'a Yükselt CTA)
+   398→- Raporlar "Tümü" filtresi: 2000 yerine 2025'ten başlıyor
+   399→- Sidebar düzeltildi: admin sadece "Admin Panel" görür (ADMIN_GROUPS), normal nav items gizli, logo "YÖNETİM" etiketi, footer "Yönetici Modu"
+   400→- App-shell: admin giriş yapınca direkt admin panel'e yönlendir (useEffect), admin başka view'a geçemez
+   401→- Dashboard araç filosu kartı: 4 metrik (Araç Sayısı, Yakıt/Yıl, Servis/Yıl, Toplam Maliyet) — API'ye fuelTotal, serviceTotal, vehicleTotalCost eklendi
+   402→
+   403→Test (Agent Browser):
+   404→- Admin login: sidebar'da SADECE "Admin Panel" ✓, "LifeOS YÖNETİM" etiketi ✓, admin panel default view ✓
+   405→- Demo login: dashboard açıldı, araç filosu kartı 4 metrik gösteriyor (1 araç, ₺6.6K yakıt, ₺4.5K servis, ₺11.1K toplam) ✓
+   406→- Standart user login: AI Asistan sidebar'da YOK ✓, "Yükselt" banner ✓
+   407→- Footer: "© 2026 LifeOS — Tüm Hakları Saklıdır" ✓ (login + app)
+   408→- Reports "Tümü": API 2025-01-01'den başlıyor ✓
+   409→- 0 console hatası, lint temiz
+   410→
+   411→Stage Summary:
+   412→- Admin = sadece admin panel (normal arayüz yok)
+   413→- Standart user = AI gizli (1 hak DB'de ama görünmez)
+   414→- Session 10 dakika (inaktivite + JWT expiry)
+   415→- Footer "Tüm Hakları Saklıdır"
+   416→- Reports "Tümü" 2025'ten başlar
+   417→- Dashboard araç kartında yakıt+servis harcamaları
+   418→
+   419→---
+   420→Task ID: 12
+   421→Agent: main
+   422→Task: Home kullanıcısı JSON veri migrasyonu + UI düzeltmeleri
+   423→
+   424→Work Log:
+   425→- Login layout: Email/şifre/Giriş Yap ÜSTTE, Google + Demo butonları ALTTA
+   426→- Footer: "© 2026 LifeOS — Tüm Hakları Saklıdır"
+   427→- Topbar: kullanıcı adı altında "Kullanıcı - Standart/Premium" etiketi
+   428→- Sidebar boşluk düzeltildi (footer mt-auto ile nav'ın hemen altında)
+   429→- Admin sadece admin panel görür (normal arayüz gizli)
+   430→- AI Asistan tüm kullanıcılarda görünür (standart 1 hak, premium 5 hak)
+   431→- "Sınırsız" yazısı kaldırıldı, premium için "Günlük hak: X/5 kaldı" gösteriliyor
+   432→- Premium yükseltme → pending_premium (admin onayı gerekir)
+   433→- Settings üyelik tab'ında "Premium Onay Bekliyor" amber banner
+   434→- Raporlar "Tümü" filtresi 2025'ten başlıyor
+   435→- Yaklaşan ödemeler 5 kayıt gösteriyor
+   436→- Dashboard araç filosu: 4 metrik (sayı, yakıt, servis, toplam maliyet)
+   437→- PDF export: Türkçe karakterler ASCII'ye çevrildi (tr() fonksiyonu)
+   438→- Supabase Google OAuth: supabase-client.ts + google-callback + google-login route
+   439→- User modeline pending_premium level eklendi
+   440→- DB: admin şifre 47Mrdn34!, ahmet silindi, home/yagmur/mustafa eklendi (standart)
+   441→- Home kullanıcısı JSON migrasyonu: prisma/migrate-home.ts
+   442→  • 11 banka hesabı, 9 kart, 1 kredi, 6 varlık, 41 gelir, 149 gider
+   443→  • 2 mülk, 1 kontrat, 1 araç, 29 yakıt, 3 servis
+   444→  • Net değer: ₺13.661.121 (Üst-Orta Sınıf)
+   445→
+   446→Test (Agent Browser):
+   447→- Admin login (47Mrdn34!): sadece admin panel, "Yönetici - Premium" etiketi ✓
+   448→- Home login (home123): dashboard ₺13.6M net değer, "Kullanıcı - Standart" ✓
+   449→- AI view: standart kullanıcı "Günlük hak: 1/1 kaldı" + Analiz Et butonu ✓
+   450→- Premium yükseltme: "Admin onayı bekleniyor" toast ✓
+   451→- 0 console hatası, lint temiz
+   452→
+   453→Stage Summary:
+   454→- Home kullanıcısının JSON verileri DB'ye tam migrasyon edildi
+   455→- Tüm UI düzeltmeleri tamamlandı
+   456→- Admin şifre değiştirildi, ahmet silindi, 3 yeni kullanıcı eklendi
+   457→

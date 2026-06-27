@@ -129,6 +129,13 @@ export function CreditCardsView() {
   const totalRemaining = totalLimit - totalUsed
   const usageRate = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0
 
+  // Group by bankName (bank-accounts-view pattern)
+  const grouped = cards.reduce<Record<string, CreditCard[]>>((acc, c) => {
+    ;(acc[c.bankName] = acc[c.bankName] || []).push(c)
+    return acc
+  }, {})
+  const bankNames = Object.keys(grouped).sort()
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -151,7 +158,7 @@ export function CreditCardsView() {
     <div className="space-y-6">
       <PageHeader
         title="Kredi Kartları"
-        description={`${cards.length} kart • ${formatCurrency(totalUsed)} kullanıldı`}
+        description={`${cards.length} kart • ${bankNames.length} banka • ${formatCurrency(totalUsed)} kullanıldı`}
         icon={CreditCardIcon}
         actions={
           <Button onClick={openCreate} className="gap-2">
@@ -187,87 +194,110 @@ export function CreditCardsView() {
           }
         />
       ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c, i) => {
-            const usage = c.limit > 0 ? (c.balance / c.limit) * 100 : 0
-            const remaining = Math.max(0, c.limit - c.balance)
+        <div className="space-y-6">
+          {bankNames.map((bankName) => {
+            const bankCards = grouped[bankName]
+            const bankLimit = bankCards.reduce((s, c) => s + (c.limit || 0), 0)
+            const bankUsed = bankCards.reduce((s, c) => s + (c.balance || 0), 0)
+            const accentColor = bankCards[0]?.color || '#64748b'
             return (
-              <motion.div
-                key={c.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
-              >
-                <Card className="group relative overflow-hidden transition-all hover:shadow-lg">
-                  {/* Card Visual */}
-                  <div
-                    className="relative h-36 overflow-hidden p-4 text-white"
-                    style={{
-                      background: `linear-gradient(135deg, ${c.color}, ${c.color}cc 60%, ${c.color}99)`,
-                    }}
-                  >
-                    <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
-                    <div className="absolute -bottom-8 -left-4 h-20 w-20 rounded-full bg-black/10" />
-                    <div className="relative flex items-start justify-between">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wider opacity-90">{c.bankName}</p>
-                        <p className="mt-1 text-lg font-bold">{c.cardName}</p>
-                      </div>
-                      <Badge variant="secondary" className="bg-white/20 text-white backdrop-blur">
-                        {c.cardType}
-                      </Badge>
-                    </div>
-                    <div className="relative mt-4 flex items-end justify-between">
-                      <div>
-                        <p className="text-[10px] uppercase opacity-80">Limit</p>
-                        <p className="text-sm font-semibold">{formatCurrency(c.limit)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase opacity-80">Kullanılan</p>
-                        <p className="text-sm font-semibold">{formatCurrency(c.balance)}</p>
-                      </div>
-                    </div>
+              <div key={bankName}>
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full" style={{ background: accentColor }} />
+                  <h3 className="text-sm font-semibold">{bankName}</h3>
+                  <Badge variant="secondary" className="text-xs">{bankCards.length} kart</Badge>
+                  <div className="ml-auto flex items-center gap-3 text-sm">
+                    <span className="text-muted-foreground">
+                      Borç: <span className="font-semibold text-rose-600 dark:text-rose-400">{formatCurrency(bankUsed)}</span>
+                    </span>
+                    <span className="font-semibold">{formatCurrency(bankLimit)}</span>
                   </div>
+                </div>
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {bankCards.map((c, i) => {
+                    const usage = c.limit > 0 ? (c.balance / c.limit) * 100 : 0
+                    const remaining = Math.max(0, c.limit - c.balance)
+                    return (
+                      <motion.div
+                        key={c.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                      >
+                        <Card className="group relative overflow-hidden transition-all hover:shadow-lg">
+                          {/* Card Visual */}
+                          <div
+                            className="relative h-36 overflow-hidden p-4 text-white"
+                            style={{
+                              background: `linear-gradient(135deg, ${c.color}, ${c.color}cc 60%, ${c.color}99)`,
+                            }}
+                          >
+                            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+                            <div className="absolute -bottom-8 -left-4 h-20 w-20 rounded-full bg-black/10" />
+                            <div className="relative flex items-start justify-between">
+                              <div>
+                                <p className="text-xs font-medium uppercase tracking-wider opacity-90">{c.bankName}</p>
+                                <p className="mt-1 text-lg font-bold">{c.cardName}</p>
+                              </div>
+                              <Badge variant="secondary" className="bg-white/20 text-white backdrop-blur">
+                                {c.cardType}
+                              </Badge>
+                            </div>
+                            <div className="relative mt-4 flex items-end justify-between">
+                              <div>
+                                <p className="text-[10px] uppercase opacity-80">Limit</p>
+                                <p className="text-sm font-semibold">{formatCurrency(c.limit)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] uppercase opacity-80">Kullanılan</p>
+                                <p className="text-sm font-semibold">{formatCurrency(c.balance)}</p>
+                              </div>
+                            </div>
+                          </div>
 
-                  <CardContent className="space-y-3 p-4">
-                    <div>
-                      <div className="mb-1 flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Kullanım</span>
-                        <span className="font-semibold">{usage.toFixed(0)}%</span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={`h-full rounded-full transition-all ${usageColor(usage)}`}
-                          style={{ width: `${Math.min(100, usage)}%` }}
-                        />
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Kalan: <span className="font-medium text-foreground">{formatCurrency(remaining)}</span>
-                      </p>
-                    </div>
+                          <CardContent className="space-y-3 p-4">
+                            <div>
+                              <div className="mb-1 flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Kullanım</span>
+                                <span className="font-semibold">{usage.toFixed(0)}%</span>
+                              </div>
+                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className={`h-full rounded-full transition-all ${usageColor(usage)}`}
+                                  style={{ width: `${Math.min(100, usage)}%` }}
+                                />
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Kalan: <span className="font-medium text-foreground">{formatCurrency(remaining)}</span>
+                              </p>
+                            </div>
 
-                    <div className="flex items-center gap-2 rounded-md bg-muted/40 p-2 text-xs">
-                      <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        Kesim: <span className="font-medium text-foreground">{c.cutoffDay}. gün</span>
-                      </span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="text-muted-foreground">
-                        Son Ödeme: <span className="font-medium text-foreground">{c.dueDay}. gün</span>
-                      </span>
-                    </div>
+                            <div className="flex items-center gap-2 rounded-md bg-muted/40 p-2 text-xs">
+                              <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-muted-foreground">
+                                Kesim: <span className="font-medium text-foreground">{c.cutoffDay}. gün</span>
+                              </span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="text-muted-foreground">
+                                Son Ödeme: <span className="font-medium text-foreground">{c.dueDay}. gün</span>
+                              </span>
+                            </div>
 
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => openEdit(c)}>
-                        <Pencil className="h-3 w-3" /> Düzenle
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-rose-500 hover:text-rose-600" onClick={() => setDeleteId(c.id)}>
-                        <Trash2 className="h-3 w-3" /> Sil
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                            <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                              <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => openEdit(c)}>
+                                <Pencil className="h-3 w-3" /> Düzenle
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-rose-500 hover:text-rose-600" onClick={() => setDeleteId(c.id)}>
+                                <Trash2 className="h-3 w-3" /> Sil
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              </div>
             )
           })}
         </div>

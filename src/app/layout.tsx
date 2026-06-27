@@ -28,7 +28,8 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "LifeOS" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/lifeos-logo.svg",
+    apple: "/lifeos-logo.svg",
   },
   openGraph: {
     title: "LifeOS — Yaşam Yönetim Platformu",

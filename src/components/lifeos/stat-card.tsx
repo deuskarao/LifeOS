@@ -32,7 +32,7 @@ export function StatCard({ title, value, icon: Icon, change, changeLabel, accent
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="relative overflow-hidden p-5 hover:shadow-lg transition-shadow">
+      <Card className="relative overflow-hidden p-5 h-full min-h-[120px] hover:shadow-lg transition-shadow">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</p>
