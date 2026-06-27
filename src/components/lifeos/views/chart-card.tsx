@@ -51,11 +51,18 @@ export const CHART_COLOR_ARRAY = [
 ]
 
 export const chartTooltipStyle = {
-  backgroundColor: 'oklch(0.18 0.018 250)',
-  border: '1px solid oklch(1 0 0 / 10%)',
+  backgroundColor: 'rgb(30 41 59)',
+  border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: '8px',
   fontSize: '12px',
-  color: 'oklch(0.97 0.005 240)',
+  color: 'rgb(241 245 249)',
+  padding: '8px 12px',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+}
+
+export const chartLabelStyle = {
+  fontSize: '12px',
+  fill: 'rgb(100 116 139)',
 }
 
 export const gridStroke = 'oklch(0.5 0.01 240 / 0.15)'

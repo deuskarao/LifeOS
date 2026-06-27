@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { api } from '@/lib/api-client'
@@ -196,7 +197,7 @@ function tr(s: string): string {
     .replace(/[^\x20-\x7E]/g, '')
 }
 
-function exportPdf(data: ReportsData, label: string) {
+function exportPdf(data: ReportsData, label: string, userName?: string) {
   try {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -222,20 +223,28 @@ function exportPdf(data: ReportsData, label: string) {
     doc.setTextColor(20, 20, 20)
     doc.text(tr('LifeOS Finansal Rapor'), margin, 30)
 
+    // Rapor kime ait
+    if (userName) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(12)
+      doc.setTextColor(16, 185, 129)
+      doc.text(tr('Hazirlayan: ') + tr(userName), margin, 37)
+    }
+
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
     doc.setTextColor(80)
     // splitTextToSize: uzun dönem etiketlerinde taşmayı önler
     const subLines = doc.splitTextToSize(periodLabel, contentWidth)
-    doc.text(subLines, margin, 38)
+    doc.text(subLines, margin, userName ? 43 : 38)
 
     doc.setFontSize(9)
     doc.setTextColor(120)
-    doc.text(genStamp, margin, 44)
+    doc.text(genStamp, margin, userName ? 49 : 44)
 
     // Ayırıcı çizgi
     doc.setDrawColor(220)
-    doc.line(margin, 48, pageWidth - margin, 48)
+    doc.line(margin, userName ? 53 : 48, pageWidth - margin, userName ? 53 : 48)
 
     /** Bölüm başlığı: renkli yan çubuk + sayfa koruması. Yeni Y döndürür. */
     const addSectionTitle = (title: string, y: number): number => {
@@ -254,7 +263,7 @@ function exportPdf(data: ReportsData, label: string) {
       return ny + 10
     }
 
-    let nextY = 56
+    let nextY = userName ? 61 : 56
 
     // === 1. ÖZET ===
     nextY = addSectionTitle('1. Özet', nextY)
@@ -377,37 +386,38 @@ function exportPdf(data: ReportsData, label: string) {
       nextY = (doc as any).lastAutoTable.finalY + 14
     }
 
-    // === 6. ARAÇ MALİYETLERİ ===
-    nextY = addSectionTitle('6. Araç Maliyetleri', nextY)
-    if (data.charts.fuelByVehicle.length > 0) {
-      autoTable(doc, {
-        startY: nextY,
-        head: [[tr('Araç Yakıt Maliyeti'), tr('Tutar')]],
-        body: data.charts.fuelByVehicle.map((c) => [tr(c.name), tr(formatCurrency(c.value))]),
-        theme: 'striped',
-        headStyles: { fillColor: COLOR_VEHICLE, textColor: 255, fontStyle: 'bold', fontSize: 10 },
-        bodyStyles: { textColor: 50, fontSize: 9 },
-        alternateRowStyles: { fillColor: STRIPE },
-        columnStyles: { 1: { halign: 'right' } },
-        margin: { top: 50, bottom: 30, left: margin, right: margin },
-      })
-      nextY = (doc as any).lastAutoTable.finalY + 8
-    }
-    // Toplamlar tablosu — sayfa koruması
-    if (nextY > pageHeight - 60) {
-      doc.addPage()
-      nextY = 30
-    }
+    // === 6. ARAÇ MALİYETLERİ (tek tablo — yakıt + servis + toplam) ===
+    nextY = addSectionTitle('6. Arac Maliyetleri', nextY)
+    // Araç bazında yakıt maliyetleri + servis + toplam tek tabloda
+    const vehicleRows: any[] = []
+    // Araç bazında yakıt
+    data.charts.fuelByVehicle.forEach((c) => {
+      vehicleRows.push([tr(c.name + ' - Yakit'), tr(formatCurrency(c.value))])
+    })
+    // Genel toplamlar
+    vehicleRows.push([tr('Yakit Toplam'), tr(formatCurrency(data.summary.fuelTotal))])
+    vehicleRows.push([tr('Servis Toplam'), tr(formatCurrency(data.summary.serviceTotal))])
+    vehicleRows.push([tr('Arac Toplam Maliyet'), tr(formatCurrency(data.summary.vehicleTotalCost))])
+
     autoTable(doc, {
       startY: nextY,
-      body: [
-        [tr('Yakıt Toplam'), tr(formatCurrency(data.summary.fuelTotal))],
-        [tr('Servis Toplam'), tr(formatCurrency(data.summary.serviceTotal))],
-        [tr('Araç Toplam Maliyet'), tr(formatCurrency(data.summary.vehicleTotalCost))],
-      ],
-      theme: 'plain',
-      bodyStyles: { fontSize: 9, textColor: 50, fontStyle: 'bold' },
-      columnStyles: { 1: { halign: 'right' } },
+      head: [[tr('Arac Maliyet Kalemi'), tr('Tutar')]],
+      body: vehicleRows,
+      theme: 'striped',
+      headStyles: { fillColor: COLOR_VEHICLE, textColor: 255, fontStyle: 'bold', fontSize: 10 },
+      bodyStyles: { textColor: 50, fontSize: 9 },
+      alternateRowStyles: { fillColor: STRIPE },
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { halign: 'right', fontStyle: 'bold' },
+      },
+      // Son 3 satırı (toplamlar) vurgula
+      didParseCell: (hookData: any) => {
+        if (hookData.row.index >= vehicleRows.length - 3) {
+          hookData.cell.styles.fontStyle = 'bold'
+          hookData.cell.styles.fillColor = [245, 245, 245]
+        }
+      },
       margin: { top: 50, bottom: 30, left: margin, right: margin },
     })
 
@@ -552,6 +562,7 @@ function exportCsv(data: ReportsData, label: string) {
 }
 
 export function ReportsView() {
+  const { data: session } = useSession()
   // Preset + custom date range state
   const [preset, setPreset] = useState<PresetKey>('this-year')
   const now = new Date()
@@ -633,7 +644,7 @@ export function ReportsView() {
               <FileSpreadsheet className="h-4 w-4" />
               Excel'e Aktar
             </Button>
-            <Button onClick={() => exportPdf(data, label)} className="gap-2">
+            <Button onClick={() => exportPdf(data, label, session?.user?.name || undefined)} className="gap-2">
               <FileText className="h-4 w-4" />
               PDF İndir
             </Button>

@@ -57,6 +57,7 @@ interface DashboardData {
     bankTotal: number
     assetTotal: number
     propertyValue: number
+    vehicleValue?: number
     cardDebt: number
     loanDebt: number
     cardLimit: number
@@ -173,7 +174,7 @@ export function DashboardView() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <MiniStat icon={Building2} label="Banka Nakit" value={k.bankTotal} color="emerald" onClick={() => set('bank-accounts')} />
         <MiniStat icon={Shield} label="Yatırım Varlıkları" value={k.assetTotal} color="amber" onClick={() => set('assets')} />
-        <MiniStat icon={Home} label="Mülk + Araç Değeri" value={k.propertyValue + (k.vehicleCount * 850000)} color="violet" onClick={() => set('rental')} />
+        <MiniStat icon={Home} label="Mülk + Araç Değeri" value={k.propertyValue + (k.vehicleValue || 0)} color="violet" onClick={() => set('rental')} />
         <MiniStat icon={CreditCard} label="Toplam Borç" value={k.cardDebt + k.loanDebt} color="rose" onClick={() => set('credit-cards')} />
       </div>
 
@@ -235,6 +236,9 @@ export function DashboardView() {
                     innerRadius={55}
                     outerRadius={90}
                     paddingAngle={2}
+                    label={({ name, percent }: any) => `${name} %${((percent || 0) * 100).toFixed(0)}`}
+                    labelLine={{ stroke: 'oklch(0.5 0.01 240 / 0.3)' }}
+                    style={{ fontSize: '11px' }}
                   >
                     {data.charts.assetByType.map((_, i) => (
                       <Cell key={i} fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]} stroke="none" />
@@ -246,11 +250,12 @@ export function DashboardView() {
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="mt-2 flex flex-wrap gap-2 justify-center">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {data.charts.assetByType.map((a, i) => (
-                  <div key={a.name} className="flex items-center gap-1.5 text-xs">
-                    <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }} />
-                    <span className="text-muted-foreground">{a.name}</span>
+                  <div key={a.name} className="flex items-center gap-2 text-xs rounded-md border bg-card/50 px-2 py-1.5">
+                    <span className="h-3 w-3 rounded-sm shrink-0" style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }} />
+                    <span className="font-medium truncate">{a.name}</span>
+                    <span className="ml-auto text-muted-foreground">{formatCompact(a.value)}</span>
                   </div>
                 ))}
               </div>

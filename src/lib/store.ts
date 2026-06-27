@@ -59,7 +59,7 @@ export interface RentalContract {
 }
 export interface Vehicle {
   id: string; userId: string; name: string; plate: string | null; brand: string | null;
-  model: string | null; year: number | null; fuelType: string; currentKm: number;
+  model: string | null; year: number | null; fuelType: string; currentKm: number; currentValue?: number;
   color: string | null; notes: string | null;
   createdAt: Date; updatedAt: Date;
   _count?: { fuelRecords: number; serviceRecords: number };
@@ -198,7 +198,7 @@ function seedDemoData(): DemoData {
   data.properties[0].contracts = [data.contracts[0]]
 
   data.vehicles = [
-    { id: 'd-v1', userId: DEMO_USER_ID, name: 'Volkswagen Golf', plate: '34 DEMO 1', brand: 'Volkswagen', model: 'Golf', year: 2020, fuelType: 'Benzin', currentKm: 38500, color: '#3b82f6', notes: 'Demo araç', createdAt: now, updatedAt: now, _count: { fuelRecords: 0, serviceRecords: 0 } },
+    { id: 'd-v1', userId: DEMO_USER_ID, name: 'Volkswagen Golf', plate: '34 DEMO 1', brand: 'Volkswagen', model: 'Golf', year: 2020, fuelType: 'Benzin', currentKm: 38500, currentValue: 850000, color: '#3b82f6', notes: 'Demo araç', createdAt: now, updatedAt: now, _count: { fuelRecords: 0, serviceRecords: 0 } },
   ]
 
   // Yakıt + servis

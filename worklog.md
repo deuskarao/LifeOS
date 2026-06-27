@@ -625,3 +625,48 @@ Stage Summary:
 - Giderler: yakıt+servis toplamda görünür ama ayrı kayıt değil
 - Pending_premium logout/login'de korunuyor (jwt callback DB'den çekiyor)
 - Logout → login ekranı (deployment hazır)
+
+---
+Task ID: 15
+Agent: main
+Task: Wealth class DB + araç değeri + grafik düzeltme + PDF + deployment hazırlık
+
+Work Log:
+- Prisma: WealthClassThreshold modeli eklendi (label, shortLabel, description, color, icon, minAmount, maxAmount)
+- Prisma: Vehicle modeline currentValue alanı eklendi
+- db:push + 6 wealth class threshold seed edildi (Borçlu, Alt, Alt-Orta, Orta, Üst-Orta, Üst)
+- getWealthClass() artık async — DB'den threshold'ları okur, fallback hardcoded
+- Dashboard route: wealthClass = await getWealthClass(netWorth)
+- Dashboard route: vehicleValue = araçların currentValue toplamı (önceki sabit 850K yerine)
+- Dashboard KPI: vehicleValue alanı eklendi, "Mülk + Araç Değeri" kartı DB'den çekiyor
+- Vehicle form: "Araç Değeri (₺)" alanı eklendi (MoneyInput)
+- Vehicle API (route + [id]): currentValue create/update'e eklendi
+- Store: Vehicle interface'ine currentValue eklendi, demo seed'e currentValue: 850000
+- Dashboard varlık grafiği düzeltildi:
+  • PieChart label'ları artık görünüyor: "Altın %50, Döviz %19" gibi
+  • Legend kartları: border + bg-card/50 ile her kategori görünür (renk dot + isim + değer)
+  • Tooltip: rgb(30 41 59) arka plan + rgb(241 245 249) yazı — her temanda okunaklı
+- chartTooltipStyle: oklch yerine rgb kullanıldı (daha geniş uyumluluk)
+- chartLabelStyle eklendi (rgb fill)
+- Rapor PDF:
+  • "Hazırlayan: [kullanıcı adı]" başlıkta yeşil renkte
+  • Araç maliyetleri TEK tabloda: araç bazında yakıt + Yakıt Toplam + Servis Toplam + Araç Toplam Maliyet
+  • Son 3 satır (toplamlar) vurgulu (bold + gri arka plan)
+  • exportPdf'e userName parametresi eklendi, useSession'dan alınıyor
+- .env.production: NEXTAUTH_URL = https://lifeos.perainc.online (push için hazır)
+- public/CNAME: lifeos.perainc.online
+
+Test (Agent Browser):
+- Demo login: dashboard açıldı ✓
+- Wealth class DB'den geliyor: "Borçlu" (demo verisinde net değer negatif) ✓
+- Varlık dağılımı: "Altın %50, Döviz %19, Hisse %30" label'lar görünüyor ✓
+- Legend: "Altın ₺71.1K, Döviz ₺27.3K, Hisse ₺42.8K" değerlerle ✓
+- Araç formunda "Araç Değeri (₺)" alanı görünüyor ✓
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- Finansal sınıf DB'de tutuluyor (WealthClassThreshold tablosu), aralıklar değiştirilebilir
+- Araçlara değer eklendi, Mülk+Araç KPI'sı DB'den araç değerini çekiyor
+- Varlık grafiği kategori isimleri ve tooltip renkleri düzeltildi
+- Rapor PDF: tek araç maliyet tablosu + "Hazırlayan: [ad]" bilgisi
+- Deployment için NEXTAUTH_URL = https://lifeos.perainc.online, CNAME hazır

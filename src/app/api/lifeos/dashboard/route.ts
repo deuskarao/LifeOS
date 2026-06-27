@@ -38,7 +38,7 @@ export async function GET() {
     const loanDebt = loans.reduce((s: number, l: any) => s + l.remainingAmount, 0)
     const assetTotal = assets.reduce((s: number, a: any) => s + a.totalValue, 0)
     const propertyValue = properties.reduce((s: number, p: any) => s + p.currentValue, 0)
-    const vehicleValue = vehicles.length * 850000
+    const vehicleValue = vehicles.reduce((s: number, v: any) => s + (v.currentValue || 0), 0)
 
     const netWorth = bankTotal + assetTotal + propertyValue + vehicleValue - cardDebt - loanDebt
 
@@ -102,7 +102,7 @@ export async function GET() {
 
     return ok({
       kpis: {
-        netWorth, bankTotal, assetTotal, propertyValue,
+        netWorth, bankTotal, assetTotal, propertyValue, vehicleValue,
         cardDebt, loanDebt, cardLimit,
         cardUsageRate: cardLimit > 0 ? (cardDebt / cardLimit) * 100 : 0,
         monthlyIncome: thisMonthIncome, monthlyExpense: thisMonthExpenseWithVehicle,
@@ -112,7 +112,7 @@ export async function GET() {
         fuelTotal,
         serviceTotal,
         vehicleTotalCost: fuelTotal + serviceTotal,
-        wealthClass: getWealthClass(netWorth),
+        wealthClass: await getWealthClass(netWorth),
       },
       charts: {
         months,

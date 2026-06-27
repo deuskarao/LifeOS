@@ -157,8 +157,56 @@ export const PROPERTY_TYPES = ['Daire', 'Villa', 'Dükkan', 'Arsa', 'Ofis'] as c
 export const VEHICLE_FUEL_TYPES = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik'] as const
 export const SERVICE_TYPES = ['Periyodik Bakım', 'Yağ Değişimi', 'Lastik', 'Sigorta', 'Muayene', 'Diğer'] as const
 
-/** Net servete göre sosyal sınıf belirler (Türkiye ekonomik sınıflandırması). */
-export function getWealthClass(netWorth: number): {
+/** Net servete göre sosyal sınıf belirler — DB'den threshold'ları okur. */
+export async function getWealthClass(netWorth: number): Promise<{
+  label: string
+  short: string
+  description: string
+  color: string
+  icon: string
+}> {
+  try {
+    // Dynamic import — client-side'da çağrılmaz
+    const { db } = await import('./db')
+    const thresholds = await db.wealthClassThreshold.findMany({
+      orderBy: { minAmount: 'asc' },
+    })
+
+    for (const t of thresholds) {
+      const minOk = netWorth >= t.minAmount
+      const maxOk = t.maxAmount === 0 || netWorth < t.maxAmount
+      if (minOk && maxOk) {
+        return {
+          label: t.label,
+          short: t.shortLabel,
+          description: t.description,
+          color: t.color,
+          icon: t.icon,
+        }
+      }
+    }
+
+    // Fallback: eşleşmezse son threshold
+    if (thresholds.length > 0) {
+      const last = thresholds[thresholds.length - 1]
+      return {
+        label: last.label,
+        short: last.shortLabel,
+        description: last.description,
+        color: last.color,
+        icon: last.icon,
+      }
+    }
+  } catch {
+    /* DB hatası — fallback'e düş */
+  }
+
+  // Fallback (DB yoksa) — hardcoded
+  return getWealthClassFallback(netWorth)
+}
+
+/** Fallback — DB erişilemezse kullanılır. */
+function getWealthClassFallback(netWorth: number): {
   label: string
   short: string
   description: string
@@ -166,56 +214,20 @@ export function getWealthClass(netWorth: number): {
   icon: string
 } {
   if (netWorth < 0) {
-    return {
-      label: 'Borçlu',
-      short: 'Borçlu',
-      description: 'Net servetiniz negatif — borçlarınız varlıklarınızı aşıyor',
-      color: 'rose',
-      icon: 'trending-down',
-    }
+    return { label: 'Borçlu', short: 'Borçlu', description: 'Net servet negatif', color: 'rose', icon: 'trending-down' }
   }
   if (netWorth < 250000) {
-    return {
-      label: 'Alt Sınıf',
-      short: 'Alt',
-      description: 'Net servet 250.000₺ altı — finansal güvenlik için birikim öncelikli',
-      color: 'rose',
-      icon: 'trending-down',
-    }
+    return { label: 'Alt Sınıf', short: 'Alt', description: '250K altı', color: 'rose', icon: 'trending-down' }
   }
   if (netWorth < 1000000) {
-    return {
-      label: 'Alt-Orta Sınıf',
-      short: 'Alt-Orta',
-      description: 'Net servet 250K-1M₺ — temel finansal güvenlik sağlanıyor',
-      color: 'amber',
-      icon: 'minus',
-    }
+    return { label: 'Alt-Orta Sınıf', short: 'Alt-Orta', description: '250K-1M', color: 'amber', icon: 'minus' }
   }
   if (netWorth < 5000000) {
-    return {
-      label: 'Orta Sınıf',
-      short: 'Orta',
-      description: 'Net servet 1M-5M₺ — sağlam finansal duruş',
-      color: 'sky',
-      icon: 'check',
-    }
+    return { label: 'Orta Sınıf', short: 'Orta', description: '1M-5M', color: 'sky', icon: 'check' }
   }
   if (netWorth < 20000000) {
-    return {
-      label: 'Üst-Orta Sınıf',
-      short: 'Üst-Orta',
-      description: 'Net servet 5M-20M₺ — üst gelir grubu',
-      color: 'violet',
-      icon: 'trending-up',
-    }
+    return { label: 'Üst-Orta Sınıf', short: 'Üst-Orta', description: '5M-20M', color: 'violet', icon: 'trending-up' }
   }
-  return {
-    label: 'Üst Sınıf',
-    short: 'Üst',
-    description: 'Net servet 20M₺+ — yüksek net değer segmenti',
-    color: 'emerald',
-    icon: 'crown',
-  }
+  return { label: 'Üst Sınıf', short: 'Üst', description: '20M+', color: 'emerald', icon: 'crown' }
 }
 

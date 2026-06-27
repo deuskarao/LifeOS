@@ -40,6 +40,21 @@ model Log {
   @@map("logs")
 }
 
+model WealthClassThreshold {
+  id          String   @id @default(cuid())
+  label       String   @unique // Borçlu, Alt Sınıf, Alt-Orta, Orta, Üst-Orta, Üst
+  shortLabel  String
+  description String
+  color       String
+  icon        String
+  minAmount   Float    @default(0) // bu sınıfın minimum net değer eşiği
+  maxAmount   Float    @default(0) // 0 = üst limit yok
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("wealth_class_thresholds")
+}
+
 // ====================== FINANCE ======================
 
 model BankAccount {
@@ -200,6 +215,7 @@ model Vehicle {
   year           Int?
   fuelType       String   @default("Benzin")
   currentKm      Int      @default(0)
+  currentValue   Float    @default(0)
   color          String?
   notes          String?
   createdAt      DateTime @default(now())

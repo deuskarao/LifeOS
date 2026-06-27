@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         name: b.name as string, plate: b.plate as string | null,
         brand: b.brand as string | null, model: b.model as string | null,
         year: b.year ? Number(b.year) : null, fuelType: b.fuelType as string,
-        currentKm: Number(b.currentKm), color: b.color as string | null,
+        currentKm: Number(b.currentKm), currentValue: Number(b.currentValue), color: b.color as string | null,
         notes: b.notes as string | null,
       })
       return ok(item)

@@ -86,6 +86,7 @@ interface Vehicle {
   year: number | null
   fuelType: string
   currentKm: number
+  currentValue?: number
   color: string | null
   notes: string | null
   createdAt: string
@@ -187,6 +188,7 @@ const emptyVehicle: Partial<Vehicle> = {
   year: null,
   fuelType: 'Benzin',
   currentKm: 0,
+  currentValue: 0,
   color: '#1e293b',
   notes: '',
 }
@@ -287,6 +289,7 @@ export function VehiclesView() {
         year: vehicleForm.year ? Number(vehicleForm.year) : null,
         fuelType: vehicleForm.fuelType ?? 'Benzin',
         currentKm: Number(vehicleForm.currentKm) || 0,
+        currentValue: Number(vehicleForm.currentValue) || 0,
         color: vehicleForm.color || null,
         notes: vehicleForm.notes || null,
       }
@@ -943,6 +946,14 @@ export function VehiclesView() {
               onChange={(e) =>
                 setVehicleForm((f) => ({ ...f, currentKm: Number(e.target.value) || 0 }))
               }
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Araç Değeri (₺)</Label>
+            <MoneyInput
+              value={vehicleForm.currentValue ?? 0}
+              onValueChange={(v) => setVehicleForm((f) => ({ ...f, currentValue: v }))}
             />
           </div>
 
