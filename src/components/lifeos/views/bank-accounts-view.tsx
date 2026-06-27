@@ -384,7 +384,7 @@ export function BankAccountsView() {
               <Input
                 value={form.easyAddress ?? ''}
                 onChange={(e) => setForm({ ...form, easyAddress: e.target.value })}
-                placeholder="ahmetyilmaz"
+                placeholder="kullaniciadi"
               />
             </div>
           </div>

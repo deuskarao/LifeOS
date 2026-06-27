@@ -176,7 +176,7 @@ export function LoginView() {
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="name"
-                        placeholder="Ahmet Yılmaz"
+                        placeholder="Ad Soyad"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="pl-9"

@@ -824,7 +824,7 @@ function UsersTab({ currentUserId }: { currentUserId?: string }) {
               id="u-name"
               value={form.name || ''}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Ahmet Yılmaz"
+              placeholder="Ad Soyad"
             />
           </div>
           <div className="space-y-1.5">
@@ -834,7 +834,7 @@ function UsersTab({ currentUserId }: { currentUserId?: string }) {
               type="email"
               value={form.email || ''}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="ahmet@example.com"
+              placeholder="ornek@email.com"
             />
           </div>
           <div className="space-y-1.5">

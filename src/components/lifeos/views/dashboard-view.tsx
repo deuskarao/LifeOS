@@ -125,7 +125,7 @@ export function DashboardView() {
     <div className="space-y-6">
       <PageHeader
         title="Gösterge Paneli"
-        description={`Hoş geldin Ahmet — ${new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`}
+        description={`Hoş geldin, ${session?.user?.name || 'Kullanıcı'} — ${new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`}
         icon={Wallet}
         actions={
           <Button onClick={() => set('ai-insights')} className="gap-2">
