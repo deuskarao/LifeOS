@@ -173,7 +173,7 @@ export function DashboardView() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <MiniStat icon={Building2} label="Banka Nakit" value={k.bankTotal} color="emerald" onClick={() => set('bank-accounts')} />
         <MiniStat icon={Shield} label="Yatırım Varlıkları" value={k.assetTotal} color="amber" onClick={() => set('assets')} />
-        <MiniStat icon={Home} label="Emlak Değeri" value={k.propertyValue} color="violet" onClick={() => set('rental')} />
+        <MiniStat icon={Home} label="Mülk + Araç Değeri" value={k.propertyValue + (k.vehicleCount * 850000)} color="violet" onClick={() => set('rental')} />
         <MiniStat icon={CreditCard} label="Toplam Borç" value={k.cardDebt + k.loanDebt} color="rose" onClick={() => set('credit-cards')} />
       </div>
 

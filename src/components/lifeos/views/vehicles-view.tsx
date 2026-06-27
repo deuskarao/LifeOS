@@ -98,8 +98,9 @@ interface VehicleFuel {
   vehicle?: Vehicle
   date: string
   liters: number
+  unitPrice?: number
   amount: number
-  km: number
+  km?: number
   fuelType: string
   station: string | null
   createdAt: string
@@ -194,11 +195,25 @@ const emptyFuel: Partial<VehicleFuel> = {
   vehicleId: '',
   date: dateInput(new Date()),
   liters: 0,
+  unitPrice: 0,
   amount: 0,
-  km: 0,
   fuelType: 'Benzin',
   station: '',
 }
+
+const FUEL_STATIONS = [
+  'Petrol Ofisi',
+  'OPET',
+  'Shell',
+  'BP',
+  'Total',
+  'Lukoil',
+  'Aytemiz',
+  'Alpet',
+  'Kadoil',
+  'Go',
+  'Diğer',
+] as const
 
 const emptyService: Partial<VehicleService> = {
   vehicleId: '',
@@ -344,12 +359,13 @@ export function VehiclesView() {
     }
     setFuelSaving(true)
     try {
+      const liters = Number(fuelForm.liters) || 0
+      const unitPrice = Number(fuelForm.unitPrice) || 0
       const payload = {
         vehicleId: fuelForm.vehicleId,
         date: fuelForm.date || dateInput(new Date()),
-        liters: Number(fuelForm.liters) || 0,
-        amount: Number(fuelForm.amount) || 0,
-        km: Number(fuelForm.km) || 0,
+        liters,
+        amount: liters * unitPrice, // otomatik hesapla
         fuelType: fuelForm.fuelType ?? 'Benzin',
         station: fuelForm.station || null,
       }
@@ -692,7 +708,6 @@ export function VehiclesView() {
                         <TableHead>Yakıt</TableHead>
                         <TableHead className="text-right">Litre</TableHead>
                         <TableHead className="text-right">Tutar</TableHead>
-                        <TableHead className="text-right">Km</TableHead>
                         <TableHead>İstasyon</TableHead>
                         <TableHead className="w-[60px]"></TableHead>
                       </TableRow>
@@ -719,9 +734,6 @@ export function VehiclesView() {
                           </TableCell>
                           <TableCell className="text-right font-semibold tabular-nums">
                             {formatCurrency(f.amount)}
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground tabular-nums">
-                            {new Intl.NumberFormat('tr-TR').format(f.km)}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {f.station ?? '—'}
@@ -1066,31 +1078,36 @@ export function VehiclesView() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Tutar</Label>
+            <Label>Birim Fiyat (₺/lt)</Label>
             <MoneyInput
-              value={fuelForm.amount ?? 0}
-              onValueChange={(v) => setFuelForm((f) => ({ ...f, amount: v }))}
+              value={fuelForm.unitPrice ?? 0}
+              onValueChange={(v) => setFuelForm((f) => ({ ...f, unitPrice: v }))}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Kilometre</Label>
-            <Input
-              type="number"
-              value={fuelForm.km ?? 0}
-              onChange={(e) =>
-                setFuelForm((f) => ({ ...f, km: Number(e.target.value) || 0 }))
-              }
-            />
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label>Toplam Tutar (otomatik hesaplanır)</Label>
+            <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/40 px-3 text-sm font-medium text-muted-foreground">
+              {formatCurrency((Number(fuelForm.liters) || 0) * (Number(fuelForm.unitPrice) || 0))}
+              <span className="ml-auto text-[10px] uppercase tracking-wider">değiştirilemez</span>
+            </div>
           </div>
 
           <div className="space-y-1.5">
             <Label>İstasyon</Label>
-            <Input
+            <Select
               value={fuelForm.station ?? ''}
-              onChange={(e) => setFuelForm((f) => ({ ...f, station: e.target.value }))}
-              placeholder="Petrol Ofisi / OPET / Shell..."
-            />
+              onValueChange={(v) => setFuelForm((f) => ({ ...f, station: v }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="İstasyon seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {FUEL_STATIONS.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

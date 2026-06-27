@@ -151,220 +151,296 @@ function periodLabel(preset: PresetKey, from: string, to: string, period?: { fro
   return PRESETS.find((p) => p.key === preset)?.label || 'Dönem'
 }
 
-/** Real PDF export using jsPDF + jspdf-autotable. */
-// Türkçe karakterleri PDF için ASCII'ye çevirir (jsPDF standart font Türkçe desteklemez)
+/** Türkçe karakterleri ve özel sembolleri PDF için ASCII'ye çevirir.
+ *  jsPDF'nin standart Helvetica fontu Unicode desteklemediğinden tüm metinler
+ *  buradan geçirilir. Son savunma hattı olarak non-ASCII karakterler temizlenir. */
 function tr(s: string): string {
   return s
+    // Para birimi sembolleri (non-ASCII strip'ten ÖNCE çevrilmeli)
     .replace(/₺/g, 'TL')
-    .replace(/ş/g, 's').replace(/Ş/g, 'S')
-    .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
-    .replace(/ı/g, 'i').replace(/İ/g, 'I')
-    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
-    .replace(/ü/g, 'u').replace(/Ü/g, 'U')
-    .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+    .replace(/€/g, 'EUR ')
+    .replace(/£/g, 'GBP ')
+    .replace(/¥/g, 'JPY ')
+    .replace(/₌/g, '=')
+    // Türkçe küçük harfler
+    .replace(/ş/g, 's')
+    .replace(/ğ/g, 'g')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
+    .replace(/ç/g, 'c')
+    // Türkçe büyük harfler
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/İ/g, 'I')
+    .replace(/Ö/g, 'O')
+    .replace(/Ü/g, 'U')
+    .replace(/Ç/g, 'C')
+    // Akıllı tırnak ve kesme işaretleri
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    // Tireler ve ellipsis
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    // Bullet ve nokta işaretleri
+    .replace(/[\u2022\u25CF\u25AA\u25AB\u00B7]/g, '*')
+    // Telif, marka, kayıt
+    .replace(/\u00A9/g, '(c)')
+    .replace(/\u00AE/g, '(r)')
+    .replace(/\u2122/g, '(TM)')
+    // Derece işareti
+    .replace(/°/g, ' derece')
+    // Çeşitli boşluklar → normal boşluk
+    .replace(/[\u00A0\u2009\u200A\u200B\u202F\u205F]/g, ' ')
+    // Kalan tüm non-ASCII karakterleri temizle (son savunma hattı)
+    .replace(/[^\x20-\x7E]/g, '')
 }
 
 function exportPdf(data: ReportsData, label: string) {
   try {
-    const doc = new jsPDF()
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
     const margin = 14
 
-    // === Header ===
-    doc.setFontSize(20)
-    doc.setTextColor(20, 20, 20)
+    // Marka renkleri (indigo/mavi kullanılmaz)
+    const BRAND: [number, number, number] = [16, 185, 129] // emerald
+    const COLOR_INCOME: [number, number, number] = [20, 184, 166] // teal
+    const COLOR_EXPENSE: [number, number, number] = [244, 63, 94] // rose
+    const COLOR_TREND: [number, number, number] = [139, 92, 246] // violet
+    const COLOR_PROPERTY: [number, number, number] = [139, 92, 246] // violet
+    const COLOR_VEHICLE: [number, number, number] = [245, 158, 11] // amber
+    const STRIPE: [number, number, number] = [248, 250, 252] // slate-50
+    const contentWidth = pageWidth - margin * 2
+
+    const genStamp = tr(`Olusturulma: ${new Date().toLocaleString('tr-TR')}`)
+    const periodLabel = tr(`Donem: ${label}`)
+
+    // ===== Sayfa 1 başlık bloğu =====
     doc.setFont('helvetica', 'bold')
-    doc.text('LifeOS Finansal Rapor', margin, 22)
+    doc.setFontSize(22)
+    doc.setTextColor(20, 20, 20)
+    doc.text(tr('LifeOS Finansal Rapor'), margin, 30)
+
     doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.setTextColor(80)
+    // splitTextToSize: uzun dönem etiketlerinde taşmayı önler
+    const subLines = doc.splitTextToSize(periodLabel, contentWidth)
+    doc.text(subLines, margin, 38)
 
-    doc.setFontSize(10)
-    doc.setTextColor(100)
-    doc.text(tr(`Dönem: ${label}`), margin, 30)
-    doc.text(tr(`Oluşturulma: ${new Date().toLocaleDateString('tr-TR')}`), margin, 36)
+    doc.setFontSize(9)
+    doc.setTextColor(120)
+    doc.text(genStamp, margin, 44)
 
-    // Separator line
+    // Ayırıcı çizgi
     doc.setDrawColor(220)
-    doc.line(margin, 40, pageWidth - margin, 40)
+    doc.line(margin, 48, pageWidth - margin, 48)
 
-    /** Adds a section title with page break protection. Returns the new Y position. */
+    /** Bölüm başlığı: renkli yan çubuk + sayfa koruması. Yeni Y döndürür. */
     const addSectionTitle = (title: string, y: number): number => {
-      if (y > 250) {
+      let ny = y
+      if (ny > pageHeight - 80) {
         doc.addPage()
-        y = 20
+        ny = 30
       }
-      doc.setFontSize(13)
-      doc.setTextColor(50, 50, 50)
+      doc.setFillColor(...BRAND)
+      doc.rect(margin, ny - 4, 3, 7, 'F')
       doc.setFont('helvetica', 'bold')
-      doc.text(tr(title), margin, y)
+      doc.setFontSize(14)
+      doc.setTextColor(30, 30, 30)
+      doc.text(tr(title), margin + 6, ny + 2)
       doc.setFont('helvetica', 'normal')
-      return y + 6
+      return ny + 10
     }
 
-    let nextY = 50
+    let nextY = 56
 
     // === 1. ÖZET ===
-    nextY = addSectionTitle('1. ÖZET', nextY)
+    nextY = addSectionTitle('1. Özet', nextY)
     autoTable(doc, {
       startY: nextY,
       head: [[tr('Özet'), tr('Tutar')]],
       body: [
-        [tr('Dönem Geliri'), formatCurrency(data.summary.periodIncome)],
-        [tr('Dönem Gideri'), formatCurrency(data.summary.periodExpense)],
-        [tr('Dönem Tasarrufu'), formatCurrency(data.summary.periodSavings)],
-        [tr('Tasarruf Oranı'), `%${data.summary.savingsRate.toFixed(1)}`],
-        [tr('Net Değer'), formatCurrency(data.summary.netWorth)],
-        [tr('Banka Toplam'), formatCurrency(data.summary.bankTotal)],
-        [tr('Varlıklar'), formatCurrency(data.summary.assetTotal)],
-        [tr('Emlak'), formatCurrency(data.summary.propertyTotal)],
-        [tr('Kredi Borcu'), formatCurrency(data.summary.loanDebt)],
-        [tr('Kart Borcu'), formatCurrency(data.summary.cardDebt)],
-      ].map(([a, b]) => [tr(a), tr(b as string)]),
-      theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 11 },
-      bodyStyles: { textColor: 50, fontSize: 10 },
-      alternateRowStyles: { fillColor: [245, 250, 248] },
-      margin: { left: margin, right: margin },
+        [tr('Dönem Geliri'), tr(formatCurrency(data.summary.periodIncome))],
+        [tr('Dönem Gideri'), tr(formatCurrency(data.summary.periodExpense))],
+        [tr('Dönem Tasarrufu'), tr(formatCurrency(data.summary.periodSavings))],
+        [tr('Tasarruf Oranı'), tr(`%${data.summary.savingsRate.toFixed(1)}`)],
+        [tr('Net Değer'), tr(formatCurrency(data.summary.netWorth))],
+        [tr('Banka Toplam'), tr(formatCurrency(data.summary.bankTotal))],
+        [tr('Varlıklar'), tr(formatCurrency(data.summary.assetTotal))],
+        [tr('Emlak'), tr(formatCurrency(data.summary.propertyTotal))],
+        [tr('Kredi Borcu'), tr(formatCurrency(data.summary.loanDebt))],
+        [tr('Kart Borcu'), tr(formatCurrency(data.summary.cardDebt))],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: BRAND, textColor: 255, fontStyle: 'bold', fontSize: 10 },
+      bodyStyles: { textColor: 50, fontSize: 9 },
+      alternateRowStyles: { fillColor: STRIPE },
+      columnStyles: { 1: { halign: 'right' } },
+      margin: { top: 50, bottom: 30, left: margin, right: margin },
     })
-    nextY = (doc as any).lastAutoTable.finalY + 18
+    nextY = (doc as any).lastAutoTable.finalY + 14
 
     // === 2. GELİR KATEGORİLERİ ===
-    nextY = addSectionTitle('2. GELIR KATEGORILERI', nextY)
+    nextY = addSectionTitle('2. Gelir Kategorileri', nextY)
     const incomeBody =
       data.charts.incomeByCategory.length > 0
-        ? data.charts.incomeByCategory.map((c) => [tr(c.name), formatCurrency(c.value)])
+        ? data.charts.incomeByCategory.map((c) => [tr(c.name), tr(formatCurrency(c.value))])
         : [[tr('Veri yok'), '-']]
     autoTable(doc, {
       startY: nextY,
       head: [[tr('Gelir Kategorisi'), tr('Tutar')]],
       body: incomeBody,
-      theme: 'grid',
-      headStyles: { fillColor: [14, 165, 233], textColor: 255, fontStyle: 'bold', fontSize: 11 },
-      bodyStyles: { fontSize: 10, textColor: 50 },
-      alternateRowStyles: { fillColor: [240, 248, 255] },
-      margin: { left: margin, right: margin },
+      theme: 'striped',
+      headStyles: { fillColor: COLOR_INCOME, textColor: 255, fontStyle: 'bold', fontSize: 10 },
+      bodyStyles: { textColor: 50, fontSize: 9 },
+      alternateRowStyles: { fillColor: STRIPE },
+      columnStyles: { 1: { halign: 'right' } },
+      margin: { top: 50, bottom: 30, left: margin, right: margin },
     })
-    nextY = (doc as any).lastAutoTable.finalY + 18
+    nextY = (doc as any).lastAutoTable.finalY + 14
 
     // === 3. GİDER KATEGORİLERİ ===
-    nextY = addSectionTitle('3. GIDER KATEGORILERI', nextY)
+    nextY = addSectionTitle('3. Gider Kategorileri', nextY)
     const expenseBody =
       data.charts.expenseByCategory.length > 0
-        ? data.charts.expenseByCategory.map((c) => [tr(c.name), formatCurrency(c.value)])
+        ? data.charts.expenseByCategory.map((c) => [tr(c.name), tr(formatCurrency(c.value))])
         : [[tr('Veri yok'), '-']]
     autoTable(doc, {
       startY: nextY,
       head: [[tr('Gider Kategorisi'), tr('Tutar')]],
       body: expenseBody,
-      theme: 'grid',
-      headStyles: { fillColor: [244, 63, 94], textColor: 255, fontStyle: 'bold', fontSize: 11 },
-      bodyStyles: { fontSize: 10, textColor: 50 },
-      alternateRowStyles: { fillColor: [255, 240, 245] },
-      margin: { left: margin, right: margin },
+      theme: 'striped',
+      headStyles: { fillColor: COLOR_EXPENSE, textColor: 255, fontStyle: 'bold', fontSize: 10 },
+      bodyStyles: { textColor: 50, fontSize: 9 },
+      alternateRowStyles: { fillColor: STRIPE },
+      columnStyles: { 1: { halign: 'right' } },
+      margin: { top: 50, bottom: 30, left: margin, right: margin },
     })
-    nextY = (doc as any).lastAutoTable.finalY + 18
+    nextY = (doc as any).lastAutoTable.finalY + 14
 
     // === 4. AYLIK TREND ===
     if (data.charts.monthlyTrend.length > 0) {
-      nextY = addSectionTitle('4. AYLIK TREND', nextY)
+      nextY = addSectionTitle('4. Aylık Trend', nextY)
       autoTable(doc, {
         startY: nextY,
         head: [[tr('Ay'), tr('Gelir'), tr('Gider'), tr('Net')]],
         body: data.charts.monthlyTrend.map((m) => [
           tr(m.month),
-          formatCurrency(m.income),
-          formatCurrency(m.expense),
-          formatCurrency(m.net),
+          tr(formatCurrency(m.income)),
+          tr(formatCurrency(m.expense)),
+          tr(formatCurrency(m.net)),
         ]),
-        theme: 'grid',
-        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold', fontSize: 11 },
-        bodyStyles: { fontSize: 10, textColor: 50 },
-        alternateRowStyles: { fillColor: [245, 240, 255] },
-        margin: { left: margin, right: margin },
+        theme: 'striped',
+        headStyles: { fillColor: COLOR_TREND, textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        bodyStyles: { textColor: 50, fontSize: 9 },
+        alternateRowStyles: { fillColor: STRIPE },
+        columnStyles: {
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+        },
+        margin: { top: 50, bottom: 30, left: margin, right: margin },
       })
-      nextY = (doc as any).lastAutoTable.finalY + 18
+      nextY = (doc as any).lastAutoTable.finalY + 14
     }
 
     // === 5. EMLAK PERFORMANSI ===
     if (data.propertyStats.length > 0) {
-      nextY = addSectionTitle('5. EMLAK PERFORMANSI', nextY)
+      nextY = addSectionTitle('5. Emlak Performansı', nextY)
       autoTable(doc, {
         startY: nextY,
         head: [[tr('Mülk'), tr('Tip'), tr('Güncel Değer'), tr('Aylık Kira'), tr('Yıllık Getiri %'), tr('Değer Artışı %')]],
         body: data.propertyStats.map((p) => [
           tr(p.name),
           tr(p.type),
-          formatCurrency(p.currentValue),
-          formatCurrency(p.monthlyRent),
-          `%${p.yieldRate.toFixed(1)}`,
-          `%${p.appreciation.toFixed(1)}`,
+          tr(formatCurrency(p.currentValue)),
+          tr(formatCurrency(p.monthlyRent)),
+          tr(`%${p.yieldRate.toFixed(1)}`),
+          tr(`%${p.appreciation.toFixed(1)}`),
         ]),
-        theme: 'grid',
-        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold', fontSize: 11 },
-        bodyStyles: { fontSize: 9, textColor: 50 },
-        alternateRowStyles: { fillColor: [245, 240, 255] },
+        theme: 'striped',
+        headStyles: { fillColor: COLOR_PROPERTY, textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        bodyStyles: { textColor: 50, fontSize: 9 },
+        alternateRowStyles: { fillColor: STRIPE },
         columnStyles: {
-          0: { cellWidth: 50 },
-          1: { cellWidth: 25 },
-          2: { cellWidth: 35 },
-          3: { cellWidth: 28 },
-          4: { cellWidth: 22 },
-          5: { cellWidth: 22 },
+          0: { cellWidth: 40 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 32, halign: 'right' },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 28, halign: 'right' },
+          5: { cellWidth: 28, halign: 'right' },
         },
-        margin: { left: margin, right: margin },
+        margin: { top: 50, bottom: 30, left: margin, right: margin },
       })
-      nextY = (doc as any).lastAutoTable.finalY + 18
+      nextY = (doc as any).lastAutoTable.finalY + 14
     }
 
     // === 6. ARAÇ MALİYETLERİ ===
-    nextY = addSectionTitle('6. ARAC MALIYETLERI', nextY)
+    nextY = addSectionTitle('6. Araç Maliyetleri', nextY)
     if (data.charts.fuelByVehicle.length > 0) {
       autoTable(doc, {
         startY: nextY,
         head: [[tr('Araç Yakıt Maliyeti'), tr('Tutar')]],
-        body: data.charts.fuelByVehicle.map((c) => [tr(c.name), formatCurrency(c.value)]),
-        theme: 'grid',
-        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold', fontSize: 11 },
-        bodyStyles: { fontSize: 10, textColor: 50 },
-        alternateRowStyles: { fillColor: [255, 248, 235] },
-        margin: { left: margin, right: margin },
+        body: data.charts.fuelByVehicle.map((c) => [tr(c.name), tr(formatCurrency(c.value))]),
+        theme: 'striped',
+        headStyles: { fillColor: COLOR_VEHICLE, textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        bodyStyles: { textColor: 50, fontSize: 9 },
+        alternateRowStyles: { fillColor: STRIPE },
+        columnStyles: { 1: { halign: 'right' } },
+        margin: { top: 50, bottom: 30, left: margin, right: margin },
       })
       nextY = (doc as any).lastAutoTable.finalY + 8
     }
-    // Page break safety for the totals table
-    if (nextY > 260) {
+    // Toplamlar tablosu — sayfa koruması
+    if (nextY > pageHeight - 60) {
       doc.addPage()
-      nextY = 20
+      nextY = 30
     }
     autoTable(doc, {
       startY: nextY,
       body: [
-        [tr('Yakıt Toplam'), formatCurrency(data.summary.fuelTotal)],
-        [tr('Servis Toplam'), formatCurrency(data.summary.serviceTotal)],
-        [tr('Araç Toplam Maliyet'), formatCurrency(data.summary.vehicleTotalCost)],
-      ].map(([a, b]) => [tr(a), tr(b as string)]),
-      theme: 'grid',
-      bodyStyles: { fontSize: 10, textColor: 50, fontStyle: 'bold' },
-      margin: { left: margin, right: margin },
+        [tr('Yakıt Toplam'), tr(formatCurrency(data.summary.fuelTotal))],
+        [tr('Servis Toplam'), tr(formatCurrency(data.summary.serviceTotal))],
+        [tr('Araç Toplam Maliyet'), tr(formatCurrency(data.summary.vehicleTotalCost))],
+      ],
+      theme: 'plain',
+      bodyStyles: { fontSize: 9, textColor: 50, fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'right' } },
+      margin: { top: 50, bottom: 30, left: margin, right: margin },
     })
 
-    // === Footer ===
-    const pageCount = (doc as any).internal.getNumberOfPages()
-    const footerDate = tr(new Date().toLocaleDateString('tr-TR'))
+    // ===== Her sayfada renkli header bar + footer =====
+    const pageCount = doc.getNumberOfPages()
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)
+
+      // Header bar (marka rengi dolu dikdörtgen)
+      doc.setFillColor(...BRAND)
+      doc.rect(0, 0, pageWidth, 14, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.text(tr('LifeOS Finansal Rapor'), margin, 9.5)
+      // Header sağ: dönem etiketi (küçük font)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const hdrRightW = doc.getTextWidth(periodLabel)
+      doc.text(periodLabel, pageWidth - margin - hdrRightW, 9.5)
+
+      // Footer ayırıcı çizgi
+      doc.setDrawColor(220)
+      doc.line(margin, pageHeight - 16, pageWidth - margin, pageHeight - 16)
       doc.setFontSize(8)
       doc.setTextColor(150)
-      const footerY = pageHeight - 8
-      // Left: report name
-      doc.text(tr('LifeOS Finansal Rapor'), margin, footerY)
-      // Center: date
-      const dateWidth = doc.getTextWidth(footerDate)
-      doc.text(footerDate, pageWidth / 2 - dateWidth / 2, footerY)
-      // Right: page number
-      const pageStr = tr(`Sayfa ${i}/${pageCount}`)
-      const pageStrWidth = doc.getTextWidth(pageStr)
-      doc.text(pageStr, pageWidth - margin - pageStrWidth, footerY)
+      const footerY = pageHeight - 10
+      // Sol: oluşturma zaman damgası
+      doc.text(genStamp, margin, footerY)
+      // Sağ: sayfa numarası "Sayfa X / Y"
+      const pageStr = tr(`Sayfa ${i} / ${pageCount}`)
+      const pageStrW = doc.getTextWidth(pageStr)
+      doc.text(pageStr, pageWidth - margin - pageStrW, footerY)
     }
 
     doc.save(`lifeos-rapor-${new Date().toISOString().slice(0, 10)}.pdf`)

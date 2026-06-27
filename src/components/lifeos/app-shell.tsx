@@ -57,7 +57,7 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar — sticky, sayfa ile uzamaz */}
-      <aside className="hidden md:flex w-64 shrink-0 border-r bg-sidebar/50 backdrop-blur-sm sticky top-0 h-screen">
+      <aside className="hidden md:flex w-56 shrink-0 border-r bg-sidebar/50 backdrop-blur-sm sticky top-0 h-screen">
         <Sidebar />
       </aside>
 

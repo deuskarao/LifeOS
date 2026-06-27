@@ -1,0 +1,1184 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState } from 'react'
+     4→     4→import { useQuery } from '@tanstack/react-query'
+     5→     5→import jsPDF from 'jspdf'
+     6→     6→import autoTable from 'jspdf-autotable'
+     7→     7→import { api } from '@/lib/api-client'
+     8→     8→import { formatCurrency, formatCompact, formatDate } from '@/lib/lifeos'
+     9→     9→import { PageHeader } from '../page-header'
+    10→    10→import { ChartCard, CHART_COLORS, CHART_COLOR_ARRAY, chartTooltipStyle, gridStroke } from './chart-card'
+    11→    11→import { toast } from 'sonner'
+    12→    12→import {
+    13→    13→  FileText,
+    14→    14→  FileSpreadsheet,
+    15→    15→  TrendingUp,
+    16→    16→  TrendingDown,
+    17→    17→  PiggyBank,
+    18→    18→  Percent,
+    19→    19→  Wallet,
+    20→    20→  Building2,
+    21→    21→  Car,
+    22→    22→  Fuel,
+    23→    23→  Wrench,
+    24→    24→  Shield,
+    25→    25→  CreditCard,
+    26→    26→  Landmark,
+    27→    27→  Calendar,
+    28→    28→  Check,
+    29→    29→  PieChart as PieChartIcon,
+    30→    30→} from 'lucide-react'
+    31→    31→import { Button } from '@/components/ui/button'
+    32→    32→import { Badge } from '@/components/ui/badge'
+    33→    33→import { Skeleton } from '@/components/ui/skeleton'
+    34→    34→import { Card, CardContent } from '@/components/ui/card'
+    35→    35→import { Input } from '@/components/ui/input'
+    36→    36→import {
+    37→    37→  Table,
+    38→    38→  TableBody,
+    39→    39→  TableCell,
+    40→    40→  TableHead,
+    41→    41→  TableHeader,
+    42→    42→  TableRow,
+    43→    43→} from '@/components/ui/table'
+    44→    44→import {
+    45→    45→  Bar,
+    46→    46→  BarChart,
+    47→    47→  CartesianGrid,
+    48→    48→  Cell,
+    49→    49→  Legend,
+    50→    50→  Pie,
+    51→    51→  PieChart,
+    52→    52→  ReferenceLine,
+    53→    53→  ResponsiveContainer,
+    54→    54→  Tooltip,
+    55→    55→  XAxis,
+    56→    56→  YAxis,
+    57→    57→} from 'recharts'
+    58→    58→import { motion } from 'framer-motion'
+    59→    59→
+    60→    60→interface ReportsData {
+    61→    61→  period: { from: string; to: string; prevFrom: string; prevTo: string }
+    62→    62→  summary: {
+    63→    63→    periodIncome: number
+    64→    64→    prevIncome: number
+    65→    65→    periodExpense: number
+    66→    66→    prevExpense: number
+    67→    67→    periodSavings: number
+    68→    68→    savingsRate: number
+    69→    69→    incomeChange: number
+    70→    70→    expenseChange: number
+    71→    71→    netWorth: number
+    72→    72→    bankTotal: number
+    73→    73→    assetTotal: number
+    74→    74→    propertyTotal: number
+    75→    75→    loanDebt: number
+    76→    76→    cardDebt: number
+    77→    77→    fuelTotal: number
+    78→    78→    serviceTotal: number
+    79→    79→    vehicleTotalCost: number
+    80→    80→  }
+    81→    81→  charts: {
+    82→    82→    monthlyTrend: { month: string; income: number; expense: number; net: number }[]
+    83→    83→    incomeByCategory: { name: string; value: number }[]
+    84→    84→    expenseByCategory: { name: string; value: number }[]
+    85→    85→    fuelByVehicle: { name: string; value: number }[]
+    86→    86→    netWorthBreakdown: { name: string; value: number }[]
+    87→    87→  }
+    88→    88→  propertyStats: {
+    89→    89→    id: string
+    90→    90→    name: string
+    91→    91→    type: string
+    92→    92→    currentValue: number
+    93→    93→    purchasePrice: number
+    94→    94→    monthlyRent: number
+    95→    95→    annualRent: number
+    96→    96→    yieldRate: number
+    97→    97→    appreciation: number
+    98→    98→    status: string
+    99→    99→  }[]
+   100→   100→}
+   101→   101→
+   102→   102→type PresetKey = 'this-year' | 'last-year' | '6m' | '3m' | '1m' | 'all' | 'custom'
+   103→   103→
+   104→   104→const PRESETS: { key: PresetKey; label: string }[] = [
+   105→   105→  { key: '1m', label: 'Bu Ay' },
+   106→   106→  { key: '3m', label: 'Son 3 Ay' },
+   107→   107→  { key: '6m', label: 'Son 6 Ay' },
+   108→   108→  { key: 'this-year', label: 'Bu Yıl' },
+   109→   109→  { key: 'last-year', label: 'Geçen Yıl' },
+   110→   110→  { key: 'all', label: 'Tümü' },
+   111→   111→]
+   112→   112→
+   113→   113→const NET_WORTH_COLORS: Record<string, string> = {
+   114→   114→  'Banka': CHART_COLORS.emerald,
+   115→   115→  'Varlıklar': CHART_COLORS.amber,
+   116→   116→  'Emlak': CHART_COLORS.violet,
+   117→   117→  'Kredi Borcu': CHART_COLORS.rose,
+   118→   118→  'Kart Borcu': CHART_COLORS.pink,
+   119→   119→}
+   120→   120→
+   121→   121→const PROPERTY_STATUS_COLORS: Record<string, string> = {
+   122→   122→  'Kiralı': 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-transparent',
+   123→   123→  'Boş': 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-transparent',
+   124→   124→  'Satılık': 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-transparent',
+   125→   125→}
+   126→   126→
+   127→   127→/** Returns ISO yyyy-mm-dd for a Date (local time). */
+   128→   128→function isoDate(d: Date): string {
+   129→   129→  const y = d.getFullYear()
+   130→   130→  const m = String(d.getMonth() + 1).padStart(2, '0')
+   131→   131→  const day = String(d.getDate()).padStart(2, '0')
+   132→   132→  return `${y}-${m}-${day}`
+   133→   133→}
+   134→   134→
+   135→   135→/** Builds the API query string from the selected date params. */
+   136→   136→function buildQuery(preset: PresetKey, from: string, to: string): string {
+   137→   137→  if (preset === 'custom' && from && to) {
+   138→   138→    return `?from=${from}&to=${to}`
+   139→   139→  }
+   140→   140→  return `?preset=${preset}`
+   141→   141→}
+   142→   142→
+   143→   143→/** Human-readable period label for the chosen date range. */
+   144→   144→function periodLabel(preset: PresetKey, from: string, to: string, period?: { from: string; to: string }): string {
+   145→   145→  if (preset === 'custom' && from && to) {
+   146→   146→    return `${formatDate(from)} - ${formatDate(to)}`
+   147→   147→  }
+   148→   148→  if (period?.from && period?.to) {
+   149→   149→    return `${formatDate(period.from)} - ${formatDate(period.to)}`
+   150→   150→  }
+   151→   151→  return PRESETS.find((p) => p.key === preset)?.label || 'Dönem'
+   152→   152→}
+   153→   153→
+   154→   154→/** Real PDF export using jsPDF + jspdf-autotable. */
+   155→   155→// Türkçe karakterleri PDF için ASCII'ye çevirir (jsPDF standart font Türkçe desteklemez)
+   156→   156→function tr(s: string): string {
+   157→   157→  return s
+   158→   158→    .replace(/₺/g, 'TL')
+   159→   159→    .replace(/ş/g, 's').replace(/Ş/g, 'S')
+   160→   160→    .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+   161→   161→    .replace(/ı/g, 'i').replace(/İ/g, 'I')
+   162→   162→    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+   163→   163→    .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+   164→   164→    .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+   165→   165→}
+   166→   166→
+   167→   167→function exportPdf(data: ReportsData, label: string) {
+   168→   168→  try {
+   169→   169→    const doc = new jsPDF()
+   170→   170→    const pageWidth = doc.internal.pageSize.getWidth()
+   171→   171→    const pageHeight = doc.internal.pageSize.getHeight()
+   172→   172→    const margin = 14
+   173→   173→
+   174→   174→    // === Header ===
+   175→   175→    doc.setFontSize(20)
+   176→   176→    doc.setTextColor(20, 20, 20)
+   177→   177→    doc.setFont('helvetica', 'bold')
+   178→   178→    doc.text('LifeOS Finansal Rapor', margin, 22)
+   179→   179→    doc.setFont('helvetica', 'normal')
+   180→   180→
+   181→   181→    doc.setFontSize(10)
+   182→   182→    doc.setTextColor(100)
+   183→   183→    doc.text(tr(`Dönem: ${label}`), margin, 30)
+   184→   184→    doc.text(tr(`Oluşturulma: ${new Date().toLocaleDateString('tr-TR')}`), margin, 36)
+   185→   185→
+   186→   186→    // Separator line
+   187→   187→    doc.setDrawColor(220)
+   188→   188→    doc.line(margin, 40, pageWidth - margin, 40)
+   189→   189→
+   190→   190→    /** Adds a section title with page break protection. Returns the new Y position. */
+   191→   191→    const addSectionTitle = (title: string, y: number): number => {
+   192→   192→      if (y > 250) {
+   193→   193→        doc.addPage()
+   194→   194→        y = 20
+   195→   195→      }
+   196→   196→      doc.setFontSize(13)
+   197→   197→      doc.setTextColor(50, 50, 50)
+   198→   198→      doc.setFont('helvetica', 'bold')
+   199→   199→      doc.text(tr(title), margin, y)
+   200→   200→      doc.setFont('helvetica', 'normal')
+   201→   201→      return y + 6
+   202→   202→    }
+   203→   203→
+   204→   204→    let nextY = 50
+   205→   205→
+   206→   206→    // === 1. ÖZET ===
+   207→   207→    nextY = addSectionTitle('1. ÖZET', nextY)
+   208→   208→    autoTable(doc, {
+   209→   209→      startY: nextY,
+   210→   210→      head: [[tr('Özet'), tr('Tutar')]],
+   211→   211→      body: [
+   212→   212→        [tr('Dönem Geliri'), formatCurrency(data.summary.periodIncome)],
+   213→   213→        [tr('Dönem Gideri'), formatCurrency(data.summary.periodExpense)],
+   214→   214→        [tr('Dönem Tasarrufu'), formatCurrency(data.summary.periodSavings)],
+   215→   215→        [tr('Tasarruf Oranı'), `%${data.summary.savingsRate.toFixed(1)}`],
+   216→   216→        [tr('Net Değer'), formatCurrency(data.summary.netWorth)],
+   217→   217→        [tr('Banka Toplam'), formatCurrency(data.summary.bankTotal)],
+   218→   218→        [tr('Varlıklar'), formatCurrency(data.summary.assetTotal)],
+   219→   219→        [tr('Emlak'), formatCurrency(data.summary.propertyTotal)],
+   220→   220→        [tr('Kredi Borcu'), formatCurrency(data.summary.loanDebt)],
+   221→   221→        [tr('Kart Borcu'), formatCurrency(data.summary.cardDebt)],
+   222→   222→      ].map(([a, b]) => [tr(a), tr(b as string)]),
+   223→   223→      theme: 'grid',
+   224→   224→      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+   225→   225→      bodyStyles: { textColor: 50, fontSize: 10 },
+   226→   226→      alternateRowStyles: { fillColor: [245, 250, 248] },
+   227→   227→      margin: { left: margin, right: margin },
+   228→   228→    })
+   229→   229→    nextY = (doc as any).lastAutoTable.finalY + 18
+   230→   230→
+   231→   231→    // === 2. GELİR KATEGORİLERİ ===
+   232→   232→    nextY = addSectionTitle('2. GELIR KATEGORILERI', nextY)
+   233→   233→    const incomeBody =
+   234→   234→      data.charts.incomeByCategory.length > 0
+   235→   235→        ? data.charts.incomeByCategory.map((c) => [tr(c.name), formatCurrency(c.value)])
+   236→   236→        : [[tr('Veri yok'), '-']]
+   237→   237→    autoTable(doc, {
+   238→   238→      startY: nextY,
+   239→   239→      head: [[tr('Gelir Kategorisi'), tr('Tutar')]],
+   240→   240→      body: incomeBody,
+   241→   241→      theme: 'grid',
+   242→   242→      headStyles: { fillColor: [14, 165, 233], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+   243→   243→      bodyStyles: { fontSize: 10, textColor: 50 },
+   244→   244→      alternateRowStyles: { fillColor: [240, 248, 255] },
+   245→   245→      margin: { left: margin, right: margin },
+   246→   246→    })
+   247→   247→    nextY = (doc as any).lastAutoTable.finalY + 18
+   248→   248→
+   249→   249→    // === 3. GİDER KATEGORİLERİ ===
+   250→   250→    nextY = addSectionTitle('3. GIDER KATEGORILERI', nextY)
+   251→   251→    const expenseBody =
+   252→   252→      data.charts.expenseByCategory.length > 0
+   253→   253→        ? data.charts.expenseByCategory.map((c) => [tr(c.name), formatCurrency(c.value)])
+   254→   254→        : [[tr('Veri yok'), '-']]
+   255→   255→    autoTable(doc, {
+   256→   256→      startY: nextY,
+   257→   257→      head: [[tr('Gider Kategorisi'), tr('Tutar')]],
+   258→   258→      body: expenseBody,
+   259→   259→      theme: 'grid',
+   260→   260→      headStyles: { fillColor: [244, 63, 94], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+   261→   261→      bodyStyles: { fontSize: 10, textColor: 50 },
+   262→   262→      alternateRowStyles: { fillColor: [255, 240, 245] },
+   263→   263→      margin: { left: margin, right: margin },
+   264→   264→    })
+   265→   265→    nextY = (doc as any).lastAutoTable.finalY + 18
+   266→   266→
+   267→   267→    // === 4. AYLIK TREND ===
+   268→   268→    if (data.charts.monthlyTrend.length > 0) {
+   269→   269→      nextY = addSectionTitle('4. AYLIK TREND', nextY)
+   270→   270→      autoTable(doc, {
+   271→   271→        startY: nextY,
+   272→   272→        head: [[tr('Ay'), tr('Gelir'), tr('Gider'), tr('Net')]],
+   273→   273→        body: data.charts.monthlyTrend.map((m) => [
+   274→   274→          tr(m.month),
+   275→   275→          formatCurrency(m.income),
+   276→   276→          formatCurrency(m.expense),
+   277→   277→          formatCurrency(m.net),
+   278→   278→        ]),
+   279→   279→        theme: 'grid',
+   280→   280→        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+   281→   281→        bodyStyles: { fontSize: 10, textColor: 50 },
+   282→   282→        alternateRowStyles: { fillColor: [245, 240, 255] },
+   283→   283→        margin: { left: margin, right: margin },
+   284→   284→      })
+   285→   285→      nextY = (doc as any).lastAutoTable.finalY + 18
+   286→   286→    }
+   287→   287→
+   288→   288→    // === 5. EMLAK PERFORMANSI ===
+   289→   289→    if (data.propertyStats.length > 0) {
+   290→   290→      nextY = addSectionTitle('5. EMLAK PERFORMANSI', nextY)
+   291→   291→      autoTable(doc, {
+   292→   292→        startY: nextY,
+   293→   293→        head: [[tr('Mülk'), tr('Tip'), tr('Güncel Değer'), tr('Aylık Kira'), tr('Yıllık Getiri %'), tr('Değer Artışı %')]],
+   294→   294→        body: data.propertyStats.map((p) => [
+   295→   295→          tr(p.name),
+   296→   296→          tr(p.type),
+   297→   297→          formatCurrency(p.currentValue),
+   298→   298→          formatCurrency(p.monthlyRent),
+   299→   299→          `%${p.yieldRate.toFixed(1)}`,
+   300→   300→          `%${p.appreciation.toFixed(1)}`,
+   301→   301→        ]),
+   302→   302→        theme: 'grid',
+   303→   303→        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+   304→   304→        bodyStyles: { fontSize: 9, textColor: 50 },
+   305→   305→        alternateRowStyles: { fillColor: [245, 240, 255] },
+   306→   306→        columnStyles: {
+   307→   307→          0: { cellWidth: 50 },
+   308→   308→          1: { cellWidth: 25 },
+   309→   309→          2: { cellWidth: 35 },
+   310→   310→          3: { cellWidth: 28 },
+   311→   311→          4: { cellWidth: 22 },
+   312→   312→          5: { cellWidth: 22 },
+   313→   313→        },
+   314→   314→        margin: { left: margin, right: margin },
+   315→   315→      })
+   316→   316→      nextY = (doc as any).lastAutoTable.finalY + 18
+   317→   317→    }
+   318→   318→
+   319→   319→    // === 6. ARAÇ MALİYETLERİ ===
+   320→   320→    nextY = addSectionTitle('6. ARAC MALIYETLERI', nextY)
+   321→   321→    if (data.charts.fuelByVehicle.length > 0) {
+   322→   322→      autoTable(doc, {
+   323→   323→        startY: nextY,
+   324→   324→        head: [[tr('Araç Yakıt Maliyeti'), tr('Tutar')]],
+   325→   325→        body: data.charts.fuelByVehicle.map((c) => [tr(c.name), formatCurrency(c.value)]),
+   326→   326→        theme: 'grid',
+   327→   327→        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold', fontSize: 11 },
+   328→   328→        bodyStyles: { fontSize: 10, textColor: 50 },
+   329→   329→        alternateRowStyles: { fillColor: [255, 248, 235] },
+   330→   330→        margin: { left: margin, right: margin },
+   331→   331→      })
+   332→   332→      nextY = (doc as any).lastAutoTable.finalY + 8
+   333→   333→    }
+   334→   334→    // Page break safety for the totals table
+   335→   335→    if (nextY > 260) {
+   336→   336→      doc.addPage()
+   337→   337→      nextY = 20
+   338→   338→    }
+   339→   339→    autoTable(doc, {
+   340→   340→      startY: nextY,
+   341→   341→      body: [
+   342→   342→        [tr('Yakıt Toplam'), formatCurrency(data.summary.fuelTotal)],
+   343→   343→        [tr('Servis Toplam'), formatCurrency(data.summary.serviceTotal)],
+   344→   344→        [tr('Araç Toplam Maliyet'), formatCurrency(data.summary.vehicleTotalCost)],
+   345→   345→      ].map(([a, b]) => [tr(a), tr(b as string)]),
+   346→   346→      theme: 'grid',
+   347→   347→      bodyStyles: { fontSize: 10, textColor: 50, fontStyle: 'bold' },
+   348→   348→      margin: { left: margin, right: margin },
+   349→   349→    })
+   350→   350→
+   351→   351→    // === Footer ===
+   352→   352→    const pageCount = (doc as any).internal.getNumberOfPages()
+   353→   353→    const footerDate = tr(new Date().toLocaleDateString('tr-TR'))
+   354→   354→    for (let i = 1; i <= pageCount; i++) {
+   355→   355→      doc.setPage(i)
+   356→   356→      doc.setFontSize(8)
+   357→   357→      doc.setTextColor(150)
+   358→   358→      const footerY = pageHeight - 8
+   359→   359→      // Left: report name
+   360→   360→      doc.text(tr('LifeOS Finansal Rapor'), margin, footerY)
+   361→   361→      // Center: date
+   362→   362→      const dateWidth = doc.getTextWidth(footerDate)
+   363→   363→      doc.text(footerDate, pageWidth / 2 - dateWidth / 2, footerY)
+   364→   364→      // Right: page number
+   365→   365→      const pageStr = tr(`Sayfa ${i}/${pageCount}`)
+   366→   366→      const pageStrWidth = doc.getTextWidth(pageStr)
+   367→   367→      doc.text(pageStr, pageWidth - margin - pageStrWidth, footerY)
+   368→   368→    }
+   369→   369→
+   370→   370→    doc.save(`lifeos-rapor-${new Date().toISOString().slice(0, 10)}.pdf`)
+   371→   371→    toast.success('PDF raporu indirildi')
+   372→   372→  } catch (e: unknown) {
+   373→   373→    console.error('PDF export error:', e)
+   374→   374→    toast.error('PDF oluşturulurken hata oluştu')
+   375→   375→  }
+   376→   376→}
+   377→   377→
+   378→   378→function exportCsv(data: ReportsData, label: string) {
+   379→   379→  const rows: string[][] = []
+   380→   380→  const today = new Date().toLocaleDateString('tr-TR')
+   381→   381→
+   382→   382→  rows.push(['LifeOS Finansal Rapor', label, today])
+   383→   383→  rows.push([])
+   384→   384→  rows.push(['OZET'])
+   385→   385→  rows.push(['Dönem Geliri', String(data.summary.periodIncome)])
+   386→   386→  rows.push(['Dönem Gideri', String(data.summary.periodExpense)])
+   387→   387→  rows.push(['Dönem Tasarrufu', String(data.summary.periodSavings)])
+   388→   388→  rows.push(['Tasarruf Orani %', data.summary.savingsRate.toFixed(2)])
+   389→   389→  rows.push(['Gelir Degisimi %', data.summary.incomeChange.toFixed(2)])
+   390→   390→  rows.push(['Gider Degisimi %', data.summary.expenseChange.toFixed(2)])
+   391→   391→  rows.push(['Onceki Doner Geliri', String(data.summary.prevIncome)])
+   392→   392→  rows.push(['Onceki Donem Gideri', String(data.summary.prevExpense)])
+   393→   393→  rows.push(['Net Deger', String(data.summary.netWorth)])
+   394→   394→  rows.push(['Banka Toplam', String(data.summary.bankTotal)])
+   395→   395→  rows.push(['Varlik Toplam', String(data.summary.assetTotal)])
+   396→   396→  rows.push(['Emlak Toplam', String(data.summary.propertyTotal)])
+   397→   397→  rows.push(['Kredi Borcu', String(data.summary.loanDebt)])
+   398→   398→  rows.push(['Kart Borcu', String(data.summary.cardDebt)])
+   399→   399→  rows.push(['Yakit Toplam', String(data.summary.fuelTotal)])
+   400→   400→  rows.push(['Servis Toplam', String(data.summary.serviceTotal)])
+   401→   401→  rows.push(['Arac Toplam Maliyet', String(data.summary.vehicleTotalCost)])
+   402→   402→  rows.push([])
+   403→   403→
+   404→   404→  rows.push(['AYLIK TREND'])
+   405→   405→  rows.push(['Ay', 'Gelir', 'Gider', 'Net'])
+   406→   406→  data.charts.monthlyTrend.forEach((m) =>
+   407→   407→    rows.push([m.month, String(m.income), String(m.expense), String(m.net)])
+   408→   408→  )
+   409→   409→  rows.push([])
+   410→   410→
+   411→   411→  rows.push(['GELIR KATEGORILERI'])
+   412→   412→  rows.push(['Kategori', 'Tutar'])
+   413→   413→  data.charts.incomeByCategory.forEach((c) => rows.push([c.name, String(c.value)]))
+   414→   414→  rows.push([])
+   415→   415→
+   416→   416→  rows.push(['GIDER KATEGORILERI'])
+   417→   417→  rows.push(['Kategori', 'Tutar'])
+   418→   418→  data.charts.expenseByCategory.forEach((c) => rows.push([c.name, String(c.value)]))
+   419→   419→  rows.push([])
+   420→   420→
+   421→   421→  rows.push(['ARAC YAKIT MALIYETI'])
+   422→   422→  rows.push(['Arac', 'Tutar'])
+   423→   423→  data.charts.fuelByVehicle.forEach((c) => rows.push([c.name, String(c.value)]))
+   424→   424→  rows.push([])
+   425→   425→
+   426→   426→  rows.push(['EMLAK PERFORMANSI'])
+   427→   427→  rows.push([
+   428→   428→    'Ad',
+   429→   429→    'Tip',
+   430→   430→    'Guncel Deger',
+   431→   431→    'Alis Fiyati',
+   432→   432→    'Aylik Kira',
+   433→   433→    'Yillik Kira',
+   434→   434→    'Getiri %',
+   435→   435→    'Deger Artisi %',
+   436→   436→    'Durum',
+   437→   437→  ])
+   438→   438→  data.propertyStats.forEach((p) =>
+   439→   439→    rows.push([
+   440→   440→      p.name,
+   441→   441→      p.type,
+   442→   442→      String(p.currentValue),
+   443→   443→      String(p.purchasePrice),
+   444→   444→      String(p.monthlyRent),
+   445→   445→      String(p.annualRent),
+   446→   446→      p.yieldRate.toFixed(2),
+   447→   447→      p.appreciation.toFixed(2),
+   448→   448→      p.status,
+   449→   449→    ])
+   450→   450→  )
+   451→   451→
+   452→   452→  const csv = rows
+   453→   453→    .map((r) =>
+   454→   454→      r
+   455→   455→        .map((cell) => {
+   456→   456→          const c = String(cell ?? '')
+   457→   457→          if (c.includes(',') || c.includes('"') || c.includes('\n')) {
+   458→   458→            return `"${c.replace(/"/g, '""')}"`
+   459→   459→          }
+   460→   460→          return c
+   461→   461→        })
+   462→   462→        .join(',')
+   463→   463→    )
+   464→   464→    .join('\n')
+   465→   465→
+   466→   466→  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+   467→   467→  const url = URL.createObjectURL(blob)
+   468→   468→  const a = document.createElement('a')
+   469→   469→  a.href = url
+   470→   470→  a.download = `lifeos-rapor-${new Date().toISOString().slice(0, 10)}.csv`
+   471→   471→  document.body.appendChild(a)
+   472→   472→  a.click()
+   473→   473→  document.body.removeChild(a)
+   474→   474→  URL.revokeObjectURL(url)
+   475→   475→  toast.success('Excel CSV dosyası indirildi')
+   476→   476→}
+   477→   477→
+   478→   478→export function ReportsView() {
+   479→   479→  // Preset + custom date range state
+   480→   480→  const [preset, setPreset] = useState<PresetKey>('this-year')
+   481→   481→  const now = new Date()
+   482→   482→  const defaultFrom = isoDate(new Date(now.getFullYear(), 0, 1))
+   483→   483→  const defaultTo = isoDate(now)
+   484→   484→  const [customFrom, setCustomFrom] = useState<string>(defaultFrom)
+   485→   485→  const [customTo, setCustomTo] = useState<string>(defaultTo)
+   486→   486→
+   487→   487→  // The actually-applied query (separate from inputs so user can type then click "Uygula")
+   488→   488→  const [appliedFrom, setAppliedFrom] = useState<string>(defaultFrom)
+   489→   489→  const [appliedTo, setAppliedTo] = useState<string>(defaultTo)
+   490→   490→
+   491→   491→  const queryStr = buildQuery(preset, appliedFrom, appliedTo)
+   492→   492→
+   493→   493→  const { data, isLoading } = useQuery<ReportsData>({
+   494→   494→    queryKey: ['reports', preset, appliedFrom, appliedTo],
+   495→   495→    queryFn: () => api.get<ReportsData>(`/api/lifeos/reports${queryStr}`),
+   496→   496→  })
+   497→   497→
+   498→   498→  const handlePresetClick = (key: PresetKey) => {
+   499→   499→    setPreset(key)
+   500→   500→    // Reset custom inputs to sensible defaults when switching to a preset
+   501→   501→    if (key !== 'custom') {
+   502→   502→      // Keep customFrom/customTo as-is so user can switch back; the API only uses them when preset==='custom'
+   503→   503→    }
+   504→   504→  }
+   505→   505→
+   506→   506→  const handleApplyCustom = () => {
+   507→   507→    if (!customFrom || !customTo) {
+   508→   508→      toast.error('Lütfen başlangıç ve bitiş tarihlerini seçin')
+   509→   509→      return
+   510→   510→    }
+   511→   511→    if (new Date(customFrom) > new Date(customTo)) {
+   512→   512→      toast.error('Başlangıç tarihi bitiş tarihinden sonra olamaz')
+   513→   513→      return
+   514→   514→    }
+   515→   515→    setPreset('custom')
+   516→   516→    setAppliedFrom(customFrom)
+   517→   517→    setAppliedTo(customTo)
+   518→   518→    toast.success('Tarih aralığı uygulandı')
+   519→   519→  }
+   520→   520→
+   521→   521→  if (isLoading || !data) {
+   522→   522→    return (
+   523→   523→      <div className="space-y-6">
+   524→   524→        <PageHeader
+   525→   525→          title="Raporlar"
+   526→   526→          description="Dönemsel finansal özet ve performans analizi"
+   527→   527→          icon={FileText}
+   528→   528→        />
+   529→   529→        <Skeleton className="h-16 w-full" />
+   530→   530→        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+   531→   531→          {Array.from({ length: 5 }).map((_, i) => (
+   532→   532→            <Skeleton key={i} className="h-28" />
+   533→   533→          ))}
+   534→   534→        </div>
+   535→   535→        <div className="grid gap-4 lg:grid-cols-3">
+   536→   536→          <Skeleton className="h-80 lg:col-span-2" />
+   537→   537→          <Skeleton className="h-80" />
+   538→   538→        </div>
+   539→   539→        <Skeleton className="h-72" />
+   540→   540→      </div>
+   541→   541→    )
+   542→   542→  }
+   543→   543→
+   544→   544→  const s = data.summary
+   545→   545→  const c = data.charts
+   546→   546→  const label = periodLabel(preset, appliedFrom, appliedTo, data.period)
+   547→   547→
+   548→   548→  return (
+   549→   549→    <div className="space-y-6">
+   550→   550→      <PageHeader
+   551→   551→        title="Raporlar"
+   552→   552→        description="Dönemsel finansal özet, kategori analizi ve varlık performansı"
+   553→   553→        icon={FileText}
+   554→   554→        actions={
+   555→   555→          <div className="flex items-center gap-2">
+   556→   556→            <Button variant="outline" onClick={() => exportCsv(data, label)} className="gap-2">
+   557→   557→              <FileSpreadsheet className="h-4 w-4" />
+   558→   558→              Excel'e Aktar
+   559→   559→            </Button>
+   560→   560→            <Button onClick={() => exportPdf(data, label)} className="gap-2">
+   561→   561→              <FileText className="h-4 w-4" />
+   562→   562→              PDF İndir
+   563→   563→            </Button>
+   564→   564→          </div>
+   565→   565→        }
+   566→   566→      />
+   567→   567→
+   568→   568→      {/* Date range selector */}
+   569→   569→      <Card>
+   570→   570→        <CardContent className="p-4">
+   571→   571→          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+   572→   572→            <div className="flex flex-wrap items-center gap-2">
+   573→   573→              <div className="mr-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+   574→   574→                <Calendar className="h-3.5 w-3.5" />
+   575→   575→                Dönem:
+   576→   576→              </div>
+   577→   577→              {PRESETS.map((p) => (
+   578→   578→                <Button
+   579→   579→                  key={p.key}
+   580→   580→                  size="sm"
+   581→   581→                  variant={preset === p.key ? 'default' : 'outline'}
+   582→   582→                  onClick={() => handlePresetClick(p.key)}
+   583→   583→                  className="h-8 px-3 text-xs"
+   584→   584→                >
+   585→   585→                  {p.label}
+   586→   586→                </Button>
+   587→   587→              ))}
+   588→   588→            </div>
+   589→   589→
+   590→   590→            <div className="flex flex-wrap items-center gap-2">
+   591→   591→              <Input
+   592→   592→                type="date"
+   593→   593→                value={customFrom}
+   594→   594→                onChange={(e) => setCustomFrom(e.target.value)}
+   595→   595→                className="h-8 w-[150px] text-xs"
+   596→   596→                aria-label="Başlangıç tarihi"
+   597→   597→              />
+   598→   598→              <span className="text-xs text-muted-foreground">—</span>
+   599→   599→              <Input
+   600→   600→                type="date"
+   601→   601→                value={customTo}
+   602→   602→                onChange={(e) => setCustomTo(e.target.value)}
+   603→   603→                className="h-8 w-[150px] text-xs"
+   604→   604→                aria-label="Bitiş tarihi"
+   605→   605→              />
+   606→   606→              <Button
+   607→   607→                size="sm"
+   608→   608→                onClick={handleApplyCustom}
+   609→   609→                className="h-8 gap-1.5 text-xs"
+   610→   610→                variant={preset === 'custom' ? 'default' : 'outline'}
+   611→   611→              >
+   612→   612→                <Check className="h-3.5 w-3.5" />
+   613→   613→                Uygula
+   614→   614→              </Button>
+   615→   615→            </div>
+   616→   616→          </div>
+   617→   617→
+   618→   618→          {/* Active period indicator */}
+   619→   619→          <div className="mt-3 flex items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
+   620→   620→            <Calendar className="h-3.5 w-3.5" />
+   621→   621→            <span>Aktif dönem:</span>
+   622→   622→            <Badge variant="secondary" className="text-xs">
+   623→   623→              {PRESETS.find((p) => p.key === preset)?.label || 'Özel'}
+   624→   624→            </Badge>
+   625→   625→            <span className="font-medium text-foreground">{label}</span>
+   626→   626→          </div>
+   627→   627→        </CardContent>
+   628→   628→      </Card>
+   629→   629→
+   630→   630→      {/* Compact KPI cards — 5 across on lg */}
+   631→   631→      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+   632→   632→        <CompactKpi
+   633→   633→          title="Dönem Geliri"
+   634→   634→          value={formatCurrency(s.periodIncome)}
+   635→   635→          icon={TrendingUp}
+   636→   636→          accent="emerald"
+   637→   637→          change={s.incomeChange}
+   638→   638→          changeLabel="önceki döneme göre"
+   639→   639→        />
+   640→   640→        <CompactKpi
+   641→   641→          title="Dönem Gideri"
+   642→   642→          value={formatCurrency(s.periodExpense)}
+   643→   643→          icon={TrendingDown}
+   644→   644→          accent="rose"
+   645→   645→          change={s.expenseChange}
+   646→   646→          changeLabel="önceki döneme göre"
+   647→   647→        />
+   648→   648→        <CompactKpi
+   649→   649→          title="Dönem Tasarrufu"
+   650→   650→          value={formatCurrency(s.periodSavings)}
+   651→   651→          icon={PiggyBank}
+   652→   652→          accent="violet"
+   653→   653→          subtitle={s.periodSavings >= 0 ? 'Artıda' : 'Eksi'}
+   654→   654→        />
+   655→   655→        <CompactKpi
+   656→   656→          title="Tasarruf Oranı"
+   657→   657→          value={`%${s.savingsRate.toFixed(1)}`}
+   658→   658→          icon={Percent}
+   659→   659→          accent="amber"
+   660→   660→          subtitle={s.savingsRate >= 20 ? 'Hedefe uygun' : 'Hedef: %20'}
+   661→   661→        />
+   662→   662→        <CompactKpi
+   663→   663→          title="Net Değer"
+   664→   664→          value={formatCurrency(s.netWorth)}
+   665→   665→          icon={Wallet}
+   666→   666→          accent="sky"
+   667→   667→          subtitle="Güncel servet"
+   668→   668→        />
+   669→   669→      </div>
+   670→   670→
+   671→   671→      {/* Charts row 1: Monthly trend (2/3) + Income by category (1/3) */}
+   672→   672→      <div className="grid gap-4 lg:grid-cols-3">
+   673→   673→        <ChartCard
+   674→   674→          title="Aylık Trend"
+   675→   675→          description="Dönem boyunca gelir, gider ve net"
+   676→   676→          icon={TrendingUp}
+   677→   677→          className="lg:col-span-2"
+   678→   678→        >
+   679→   679→          {c.monthlyTrend.length === 0 || c.monthlyTrend.every((d) => d.income === 0 && d.expense === 0 && d.net === 0) ? (
+   680→   680→            <EmptyChart height={300} />
+   681→   681→          ) : (
+   682→   682→            <ResponsiveContainer width="100%" height={300}>
+   683→   683→              <BarChart data={c.monthlyTrend} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+   684→   684→                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+   685→   685→                <XAxis
+   686→   686→                  dataKey="month"
+   687→   687→                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+   688→   688→                  axisLine={false}
+   689→   689→                  tickLine={false}
+   690→   690→                />
+   691→   691→                <YAxis
+   692→   692→                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+   693→   693→                  axisLine={false}
+   694→   694→                  tickLine={false}
+   695→   695→                  tickFormatter={(v) => formatCompact(v)}
+   696→   696→                />
+   697→   697→                <Tooltip
+   698→   698→                  contentStyle={chartTooltipStyle}
+   699→   699→                  formatter={(v: number) => formatCurrency(v)}
+   700→   700→                  cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
+   701→   701→                />
+   702→   702→                <Legend
+   703→   703→                  wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+   704→   704→                  iconType="circle"
+   705→   705→                  iconSize={8}
+   706→   706→                />
+   707→   707→                <Bar dataKey="income" name="Gelir" fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
+   708→   708→                <Bar dataKey="expense" name="Gider" fill={CHART_COLORS.rose} radius={[4, 4, 0, 0]} />
+   709→   709→                <Bar dataKey="net" name="Net" fill={CHART_COLORS.violet} radius={[4, 4, 0, 0]} />
+   710→   710→              </BarChart>
+   711→   711→            </ResponsiveContainer>
+   712→   712→          )}
+   713→   713→        </ChartCard>
+   714→   714→
+   715→   715→        <ChartCard
+   716→   716→          title="Gelir Kategorileri"
+   717→   717→          description="Dönem dağılımı"
+   718→   718→          icon={TrendingUp}
+   719→   719→        >
+   720→   720→          {c.incomeByCategory.length === 0 || c.incomeByCategory.every((d) => d.value === 0) ? (
+   721→   721→            <EmptyChart height={260} />
+   722→   722→          ) : (
+   723→   723→            <>
+   724→   724→              <ResponsiveContainer width="100%" height={260}>
+   725→   725→                <PieChart>
+   726→   726→                  <Pie
+   727→   727→                    data={c.incomeByCategory}
+   728→   728→                    dataKey="value"
+   729→   729→                    nameKey="name"
+   730→   730→                    cx="50%"
+   731→   731→                    cy="50%"
+   732→   732→                    innerRadius={55}
+   733→   733→                    outerRadius={90}
+   734→   734→                    paddingAngle={2}
+   735→   735→                  >
+   736→   736→                    {c.incomeByCategory.map((_, i) => (
+   737→   737→                      <Cell
+   738→   738→                        key={i}
+   739→   739→                        fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]}
+   740→   740→                        stroke="none"
+   741→   741→                      />
+   742→   742→                    ))}
+   743→   743→                  </Pie>
+   744→   744→                  <Tooltip
+   745→   745→                    contentStyle={chartTooltipStyle}
+   746→   746→                    formatter={(v: number, n: string) => [formatCurrency(v), n]}
+   747→   747→                  />
+   748→   748→                </PieChart>
+   749→   749→              </ResponsiveContainer>
+   750→   750→              <div className="mt-2 flex flex-wrap gap-2 justify-center max-h-20 overflow-y-auto">
+   751→   751→                {c.incomeByCategory.map((a, i) => (
+   752→   752→                  <div key={a.name} className="flex items-center gap-1.5 text-xs">
+   753→   753→                    <span
+   754→   754→                      className="h-2.5 w-2.5 rounded-sm"
+   755→   755→                      style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }}
+   756→   756→                    />
+   757→   757→                    <span className="text-muted-foreground">{a.name}</span>
+   758→   758→                  </div>
+   759→   759→                ))}
+   760→   760→              </div>
+   761→   761→            </>
+   762→   762→          )}
+   763→   763→        </ChartCard>
+   764→   764→      </div>
+   765→   765→
+   766→   766→      {/* Charts row 2: Expense pie (1/3) + Net worth breakdown (2/3) */}
+   767→   767→      <div className="grid gap-4 lg:grid-cols-3">
+   768→   768→        <ChartCard
+   769→   769→          title="Gider Kategorileri"
+   770→   770→          description="Dönem dağılımı"
+   771→   771→          icon={TrendingDown}
+   772→   772→        >
+   773→   773→          {c.expenseByCategory.length === 0 || c.expenseByCategory.every((d) => d.value === 0) ? (
+   774→   774→            <EmptyChart height={260} />
+   775→   775→          ) : (
+   776→   776→            <>
+   777→   777→              <ResponsiveContainer width="100%" height={260}>
+   778→   778→                <PieChart>
+   779→   779→                  <Pie
+   780→   780→                    data={c.expenseByCategory}
+   781→   781→                    dataKey="value"
+   782→   782→                    nameKey="name"
+   783→   783→                    cx="50%"
+   784→   784→                    cy="50%"
+   785→   785→                    innerRadius={55}
+   786→   786→                    outerRadius={90}
+   787→   787→                    paddingAngle={2}
+   788→   788→                  >
+   789→   789→                    {c.expenseByCategory.map((_, i) => (
+   790→   790→                      <Cell
+   791→   791→                        key={i}
+   792→   792→                        fill={CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length]}
+   793→   793→                        stroke="none"
+   794→   794→                      />
+   795→   795→                    ))}
+   796→   796→                  </Pie>
+   797→   797→                  <Tooltip
+   798→   798→                    contentStyle={chartTooltipStyle}
+   799→   799→                    formatter={(v: number, n: string) => [formatCurrency(v), n]}
+   800→   800→                  />
+   801→   801→                </PieChart>
+   802→   802→              </ResponsiveContainer>
+   803→   803→              <div className="mt-2 flex flex-wrap gap-2 justify-center max-h-20 overflow-y-auto">
+   804→   804→                {c.expenseByCategory.map((a, i) => (
+   805→   805→                  <div key={a.name} className="flex items-center gap-1.5 text-xs">
+   806→   806→                    <span
+   807→   807→                      className="h-2.5 w-2.5 rounded-sm"
+   808→   808→                      style={{ background: CHART_COLOR_ARRAY[i % CHART_COLOR_ARRAY.length] }}
+   809→   809→                    />
+   810→   810→                    <span className="text-muted-foreground">{a.name}</span>
+   811→   811→                  </div>
+   812→   812→                ))}
+   813→   813→              </div>
+   814→   814→            </>
+   815→   815→          )}
+   816→   816→        </ChartCard>
+   817→   817→
+   818→   818→        <ChartCard
+   819→   819→          title="Net Değer Dağılımı"
+   820→   820→          description="Varlıklar ve borçlar"
+   821→   821→          icon={Wallet}
+   822→   822→          className="lg:col-span-2"
+   823→   823→        >
+   824→   824→          {c.netWorthBreakdown.length === 0 || c.netWorthBreakdown.every((d) => d.value === 0) ? (
+   825→   825→            <EmptyChart height={300} />
+   826→   826→          ) : (
+   827→   827→            <ResponsiveContainer width="100%" height={300}>
+   828→   828→              <BarChart
+   829→   829→                data={c.netWorthBreakdown}
+   830→   830→                layout="vertical"
+   831→   831→                margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
+   832→   832→              >
+   833→   833→                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+   834→   834→                <XAxis
+   835→   835→                  type="number"
+   836→   836→                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+   837→   837→                  axisLine={false}
+   838→   838→                  tickLine={false}
+   839→   839→                  tickFormatter={(v) => formatCompact(v)}
+   840→   840→                />
+   841→   841→                <YAxis
+   842→   842→                  type="category"
+   843→   843→                  dataKey="name"
+   844→   844→                  tick={{ fontSize: 12, fill: 'oklch(0.5 0.01 240)' }}
+   845→   845→                  axisLine={false}
+   846→   846→                  tickLine={false}
+   847→   847→                  width={90}
+   848→   848→                />
+   849→   849→                <Tooltip
+   850→   850→                  contentStyle={chartTooltipStyle}
+   851→   851→                  formatter={(v: number) => formatCurrency(v)}
+   852→   852→                  cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
+   853→   853→                />
+   854→   854→                <ReferenceLine x={0} stroke="oklch(0.5 0.01 240 / 0.4)" />
+   855→   855→                <Bar dataKey="value" name="Tutar" radius={[0, 6, 6, 0]}>
+   856→   856→                  {c.netWorthBreakdown.map((entry, i) => (
+   857→   857→                    <Cell
+   858→   858→                      key={i}
+   859→   859→                      fill={NET_WORTH_COLORS[entry.name] || 'oklch(0.6 0.01 240)'}
+   860→   860→                    />
+   861→   861→                  ))}
+   862→   862→                </Bar>
+   863→   863→              </BarChart>
+   864→   864→            </ResponsiveContainer>
+   865→   865→          )}
+   866→   866→          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+   867→   867→            <SummaryRow icon={Landmark} label="Banka" value={s.bankTotal} color="emerald" />
+   868→   868→            <SummaryRow icon={Shield} label="Varlıklar" value={s.assetTotal} color="amber" />
+   869→   869→            <SummaryRow icon={Building2} label="Emlak" value={s.propertyTotal} color="violet" />
+   870→   870→            <SummaryRow icon={CreditCard} label="Kart Borcu" value={-s.cardDebt} color="pink" />
+   871→   871→            <SummaryRow icon={Landmark} label="Kredi Borcu" value={-s.loanDebt} color="rose" />
+   872→   872→            <SummaryRow icon={Wallet} label="Net Değer" value={s.netWorth} color="emerald" bold />
+   873→   873→          </div>
+   874→   874→        </ChartCard>
+   875→   875→      </div>
+   876→   876→
+   877→   877→      {/* Property performance */}
+   878→   878→      {data.propertyStats.length > 0 && (
+   879→   879→        <Card>
+   880→   880→          <CardContent className="p-5">
+   881→   881→            <div className="mb-4 flex items-center justify-between">
+   882→   882→              <h3 className="flex items-center gap-2 text-sm font-semibold">
+   883→   883→                <Building2 className="h-4 w-4 text-muted-foreground" />
+   884→   884→                Emlak Performansı
+   885→   885→              </h3>
+   886→   886→              <span className="text-xs text-muted-foreground">
+   887→   887→                {data.propertyStats.length} mülk • Toplam {formatCompact(s.propertyTotal)}
+   888→   888→              </span>
+   889→   889→            </div>
+   890→   890→            <div className="overflow-x-auto">
+   891→   891→              <Table>
+   892→   892→                <TableHeader>
+   893→   893→                  <TableRow>
+   894→   894→                    <TableHead>Mülk</TableHead>
+   895→   895→                    <TableHead>Tip</TableHead>
+   896→   896→                    <TableHead className="text-right">Güncel Değer</TableHead>
+   897→   897→                    <TableHead className="text-right">Aylık Kira</TableHead>
+   898→   898→                    <TableHead className="text-right">Yıllık Kira</TableHead>
+   899→   899→                    <TableHead className="text-right">Getiri %</TableHead>
+   900→   900→                    <TableHead className="text-right">Değer Artışı</TableHead>
+   901→   901→                    <TableHead>Durum</TableHead>
+   902→   902→                  </TableRow>
+   903→   903→                </TableHeader>
+   904→   904→                <TableBody>
+   905→   905→                  {data.propertyStats.map((p, i) => (
+   906→   906→                    <motion.tr
+   907→   907→                      key={p.id}
+   908→   908→                      initial={{ opacity: 0, y: 6 }}
+   909→   909→                      animate={{ opacity: 1, y: 0 }}
+   910→   910→                      transition={{ delay: i * 0.04 }}
+   911→   911→                      className="hover:bg-muted/50 border-b transition-colors"
+   912→   912→                    >
+   913→   913→                      <TableCell className="font-medium">{p.name}</TableCell>
+   914→   914→                      <TableCell>
+   915→   915→                        <Badge variant="outline" className="text-xs">
+   916→   916→                          {p.type}
+   917→   917→                        </Badge>
+   918→   918→                      </TableCell>
+   919→   919→                      <TableCell className="text-right font-medium">
+   920→   920→                        {formatCurrency(p.currentValue)}
+   921→   921→                      </TableCell>
+   922→   922→                      <TableCell className="text-right">
+   923→   923→                        {p.monthlyRent > 0 ? formatCurrency(p.monthlyRent) : '-'}
+   924→   924→                      </TableCell>
+   925→   925→                      <TableCell className="text-right">
+   926→   926→                        {p.annualRent > 0 ? formatCurrency(p.annualRent) : '-'}
+   927→   927→                      </TableCell>
+   928→   928→                      <TableCell
+   929→   929→                        className={`text-right font-semibold ${
+   930→   930→                          p.yieldRate >= 0
+   931→   931→                            ? 'text-emerald-600 dark:text-emerald-400'
+   932→   932→                            : 'text-rose-600 dark:text-rose-400'
+   933→   933→                        }`}
+   934→   934→                      >
+   935→   935→                        {p.yieldRate.toFixed(1)}%
+   936→   936→                      </TableCell>
+   937→   937→                      <TableCell
+   938→   938→                        className={`text-right font-semibold ${
+   939→   939→                          p.appreciation >= 0
+   940→   940→                            ? 'text-emerald-600 dark:text-emerald-400'
+   941→   941→                            : 'text-rose-600 dark:text-rose-400'
+   942→   942→                        }`}
+   943→   943→                      >
+   944→   944→                        {p.appreciation >= 0 ? '+' : ''}
+   945→   945→                        {p.appreciation.toFixed(1)}%
+   946→   946→                      </TableCell>
+   947→   947→                      <TableCell>
+   948→   948→                        <Badge
+   949→   949→                          className={
+   950→   950→                            PROPERTY_STATUS_COLORS[p.status] ||
+   951→   951→                            'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-transparent'
+   952→   952→                          }
+   953→   953→                        >
+   954→   954→                          {p.status}
+   955→   955→                        </Badge>
+   956→   956→                      </TableCell>
+   957→   957→                    </motion.tr>
+   958→   958→                  ))}
+   959→   959→                </TableBody>
+   960→   960→              </Table>
+   961→   961→            </div>
+   962→   962→          </CardContent>
+   963→   963→        </Card>
+   964→   964→      )}
+   965→   965→
+   966→   966→      {/* Vehicle cost section */}
+   967→   967→      <div className="grid gap-4 lg:grid-cols-3">
+   968→   968→        <Card className="lg:col-span-1">
+   969→   969→          <CardContent className="p-5 space-y-3">
+   970→   970→            <div className="mb-2 flex items-center gap-2">
+   971→   971→              <Car className="h-4 w-4 text-muted-foreground" />
+   972→   972→              <h3 className="text-sm font-semibold">Araç Maliyeti</h3>
+   973→   973→            </div>
+   974→   974→            <div className="rounded-lg bg-muted/50 p-3">
+   975→   975→              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   976→   976→                <Fuel className="h-3.5 w-3.5" />
+   977→   977→                Yakıt Toplam
+   978→   978→              </div>
+   979→   979→              <p className="mt-1 text-xl font-bold text-rose-600 dark:text-rose-400">
+   980→   980→                {formatCurrency(s.fuelTotal)}
+   981→   981→              </p>
+   982→   982→            </div>
+   983→   983→            <div className="rounded-lg bg-muted/50 p-3">
+   984→   984→              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   985→   985→                <Wrench className="h-3.5 w-3.5" />
+   986→   986→                Servis Toplam
+   987→   987→              </div>
+   988→   988→              <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">
+   989→   989→                {formatCurrency(s.serviceTotal)}
+   990→   990→              </p>
+   991→   991→            </div>
+   992→   992→            <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-3">
+   993→   993→              <div className="flex items-center gap-2 text-xs font-medium text-primary">
+   994→   994→                <Car className="h-3.5 w-3.5" />
+   995→   995→                Toplam Maliyet
+   996→   996→              </div>
+   997→   997→              <p className="mt-1 text-2xl font-bold">{formatCurrency(s.vehicleTotalCost)}</p>
+   998→   998→              <p className="mt-0.5 text-xs text-muted-foreground">dönem boyunca</p>
+   999→   999→            </div>
+  1000→  1000→          </CardContent>
+  1001→  1001→        </Card>
+  1002→  1002→
+  1003→  1003→        <ChartCard
+  1004→  1004→          title="Araç Bazında Yakıt"
+  1005→  1005→          description="Dönemdeki yakıt harcaması"
+  1006→  1006→          icon={Fuel}
+  1007→  1007→          className="lg:col-span-2"
+  1008→  1008→        >
+  1009→  1009→          {c.fuelByVehicle.length === 0 || c.fuelByVehicle.every((d) => d.value === 0) ? (
+  1010→  1010→            <EmptyChart height={300} />
+  1011→  1011→          ) : (
+  1012→  1012→            <ResponsiveContainer width="100%" height={300}>
+  1013→  1013→              <BarChart
+  1014→  1014→                data={c.fuelByVehicle}
+  1015→  1015→                margin={{ top: 5, right: 5, left: -10, bottom: 0 }}
+  1016→  1016→              >
+  1017→  1017→                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+  1018→  1018→                <XAxis
+  1019→  1019→                  dataKey="name"
+  1020→  1020→                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+  1021→  1021→                  axisLine={false}
+  1022→  1022→                  tickLine={false}
+  1023→  1023→                />
+  1024→  1024→                <YAxis
+  1025→  1025→                  tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }}
+  1026→  1026→                  axisLine={false}
+  1027→  1027→                  tickLine={false}
+  1028→  1028→                  tickFormatter={(v) => formatCompact(v)}
+  1029→  1029→                />
+  1030→  1030→                <Tooltip
+  1031→  1031→                  contentStyle={chartTooltipStyle}
+  1032→  1032→                  formatter={(v: number) => formatCurrency(v)}
+  1033→  1033→                  cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
+  1034→  1034→                />
+  1035→  1035→                <Bar dataKey="value" name="Yakıt" radius={[6, 6, 0, 0]}>
+  1036→  1036→                  {c.fuelByVehicle.map((_, i) => (
+  1037→  1037→                    <Cell
+  1038→  1038→                      key={i}
+  1039→  1039→                      fill={
+  1040→  1040→                        [CHART_COLORS.amber, CHART_COLORS.rose, CHART_COLORS.teal, CHART_COLORS.violet][
+  1041→  1041→                          i % 4
+  1042→  1042→                        ]
+  1043→  1043→                      }
+  1044→  1044→                    />
+  1045→  1045→                  ))}
+  1046→  1046→                </Bar>
+  1047→  1047→              </BarChart>
+  1048→  1048→            </ResponsiveContainer>
+  1049→  1049→          )}
+  1050→  1050→        </ChartCard>
+  1051→  1051→      </div>
+  1052→  1052→
+  1053→  1053→      {/* Report footer */}
+  1054→  1054→      <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
+  1055→  1055→        <p>
+  1056→  1056→          LifeOS Raporları • {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} tarihinde oluşturuldu
+  1057→  1057→        </p>
+  1058→  1058→      </div>
+  1059→  1059→    </div>
+  1060→  1060→  )
+  1061→  1061→}
+  1062→  1062→
+  1063→  1063→/** Compact KPI card — fits 5-across on lg without overflow. */
+  1064→  1064→function CompactKpi({
+  1065→  1065→  title,
+  1066→  1066→  value,
+  1067→  1067→  icon: Icon,
+  1068→  1068→  accent = 'emerald',
+  1069→  1069→  change,
+  1070→  1070→  changeLabel,
+  1071→  1071→  subtitle,
+  1072→  1072→}: {
+  1073→  1073→  title: string
+  1074→  1074→  value: string
+  1075→  1075→  icon: typeof Wallet
+  1076→  1076→  accent?: 'emerald' | 'violet' | 'amber' | 'rose' | 'sky'
+  1077→  1077→  change?: number
+  1078→  1078→  changeLabel?: string
+  1079→  1079→  subtitle?: string
+  1080→  1080→}) {
+  1081→  1081→  const ACCENTS = {
+  1082→  1082→    emerald: { bg: 'oklch(0.68 0.17 155 / 0.12)', text: 'oklch(0.7 0.17 155)', ring: 'oklch(0.68 0.17 155 / 0.2)' },
+  1083→  1083→    violet: { bg: 'oklch(0.65 0.18 280 / 0.12)', text: 'oklch(0.7 0.18 280)', ring: 'oklch(0.65 0.18 280 / 0.2)' },
+  1084→  1084→    amber: { bg: 'oklch(0.75 0.18 65 / 0.12)', text: 'oklch(0.78 0.18 65)', ring: 'oklch(0.75 0.18 65 / 0.2)' },
+  1085→  1085→    rose: { bg: 'oklch(0.65 0.2 25 / 0.12)', text: 'oklch(0.7 0.2 25)', ring: 'oklch(0.65 0.2 25 / 0.2)' },
+  1086→  1086→    sky: { bg: 'oklch(0.6 0.15 200 / 0.12)', text: 'oklch(0.65 0.15 200)', ring: 'oklch(0.6 0.15 200 / 0.2)' },
+  1087→  1087→  }
+  1088→  1088→  const a = ACCENTS[accent]
+  1089→  1089→  const positive = (change ?? 0) >= 0
+  1090→  1090→
+  1091→  1091→  return (
+  1092→  1092→    <motion.div
+  1093→  1093→      initial={{ opacity: 0, y: 10 }}
+  1094→  1094→      animate={{ opacity: 1, y: 0 }}
+  1095→  1095→      transition={{ duration: 0.25 }}
+  1096→  1096→    >
+  1097→  1097→      <Card className="relative overflow-hidden p-4 hover:shadow-md transition-shadow">
+  1098→  1098→        <div className="flex items-start justify-between gap-2">
+  1099→  1099→          <div className="min-w-0 flex-1">
+  1100→  1100→            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+  1101→  1101→              {title}
+  1102→  1102→            </p>
+  1103→  1103→            <p className="mt-1.5 truncate text-lg font-bold tracking-tight">{value}</p>
+  1104→  1104→            {subtitle && (
+  1105→  1105→              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{subtitle}</p>
+  1106→  1106→            )}
+  1107→  1107→            {typeof change === 'number' && (
+  1108→  1108→              <div className="mt-1.5 flex items-center gap-1">
+  1109→  1109→                <span
+  1110→  1110→                  className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-semibold ${
+  1111→  1111→                    positive
+  1112→  1112→                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+  1113→  1113→                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+  1114→  1114→                  }`}
+  1115→  1115→                >
+  1116→  1116→                  {positive ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+  1117→  1117→                  {Math.abs(change).toFixed(1)}%
+  1118→  1118→                </span>
+  1119→  1119→                {changeLabel && (
+  1120→  1120→                  <span className="truncate text-[10px] text-muted-foreground">{changeLabel}</span>
+  1121→  1121→                )}
+  1122→  1122→              </div>
+  1123→  1123→            )}
+  1124→  1124→          </div>
+  1125→  1125→          <div
+  1126→  1126→            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+  1127→  1127→            style={{ background: a.bg, color: a.text, boxShadow: `inset 0 0 0 1px ${a.ring}` }}
+  1128→  1128→          >
+  1129→  1129→            <Icon className="h-4 w-4" />
+  1130→  1130→          </div>
+  1131→  1131→        </div>
+  1132→  1132→      </Card>
+  1133→  1133→    </motion.div>
+  1134→  1134→  )
+  1135→  1135→}
+  1136→  1136→
+  1137→  1137→function SummaryRow({
+  1138→  1138→  icon: Icon,
+  1139→  1139→  label,
+  1140→  1140→  value,
+  1141→  1141→  color,
+  1142→  1142→  bold,
+  1143→  1143→}: {
+  1144→  1144→  icon: typeof Building2
+  1145→  1145→  label: string
+  1146→  1146→  value: number
+  1147→  1147→  color: 'emerald' | 'violet' | 'amber' | 'rose' | 'pink' | 'sky'
+  1148→  1148→  bold?: boolean
+  1149→  1149→}) {
+  1150→  1150→  const colors = {
+  1151→  1151→    emerald: 'text-emerald-600 dark:text-emerald-400',
+  1152→  1152→    violet: 'text-violet-600 dark:text-violet-400',
+  1153→  1153→    amber: 'text-amber-600 dark:text-amber-400',
+  1154→  1154→    rose: 'text-rose-600 dark:text-rose-400',
+  1155→  1155→    pink: 'text-pink-600 dark:text-pink-400',
+  1156→  1156→    sky: 'text-sky-600 dark:text-sky-400',
+  1157→  1157→  }
+  1158→  1158→  return (
+  1159→  1159→    <div className="flex items-center gap-2 rounded-lg border bg-card/50 px-2.5 py-1.5">
+  1160→  1160→      <Icon className={`h-3.5 w-3.5 ${colors[color]}`} />
+  1161→  1161→      <div className="min-w-0 flex-1">
+  1162→  1162→        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+  1163→  1163→        <p className={`truncate text-xs ${bold ? 'font-bold' : 'font-medium'} ${colors[color]}`}>
+  1164→  1164→          {formatCurrency(value)}
+  1165→  1165→        </p>
+  1166→  1166→      </div>
+  1167→  1167→    </div>
+  1168→  1168→  )
+  1169→  1169→}
+  1170→  1170→
+  1171→  1171→/** Empty chart placeholder shown when chart data is missing or all zeros. */
+  1172→  1172→function EmptyChart({ height = 280 }: { height?: number }) {
+  1173→  1173→  return (
+  1174→  1174→    <div
+  1175→  1175→      className="flex flex-col items-center justify-center gap-2 text-muted-foreground"
+  1176→  1176→      style={{ height }}
+  1177→  1177→    >
+  1178→  1178→      <PieChartIcon className="h-12 w-12 opacity-30" />
+  1179→  1179→      <p className="text-sm font-medium">Veri yok</p>
+  1180→  1180→      <p className="text-xs">Bu dönem için kayıt bulunamadı</p>
+  1181→  1181→    </div>
+  1182→  1182→  )
+  1183→  1183→}
+  1184→  1184→

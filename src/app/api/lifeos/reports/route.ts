@@ -17,26 +17,35 @@ export async function GET(req: NextRequest) {
 
     const now = new Date()
     let startDate: Date
-    let endDate: Date = now
+    let endDate: Date
 
     if (fromParam && toParam) {
       startDate = new Date(fromParam)
       endDate = new Date(toParam)
       endDate.setHours(23, 59, 59, 999)
     } else if (preset === 'last-year') {
+      // Geçen yıl tam — Oca-Ara
       startDate = new Date(now.getFullYear() - 1, 0, 1)
       endDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
     } else if (preset === '6m') {
+      // Son 6 tam ay — bu ay dahil, 6 ay geri. Oca-Haz gibi tam aylar.
       startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59) // bu ayın son günü
     } else if (preset === '3m') {
+      // Son 3 tam ay
       startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
     } else if (preset === '1m') {
+      // Bu ay tam
       startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
     } else if (preset === 'all') {
       startDate = new Date(2025, 0, 1)
+      endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
     } else {
-      // default: this year
+      // default: this year (Oca-Ara tam)
       startDate = new Date(now.getFullYear(), 0, 1)
+      endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
     }
 
     // Karşılaştırma için önceki dönem (aynı uzunlukta)

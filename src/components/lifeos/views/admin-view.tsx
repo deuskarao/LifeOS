@@ -57,6 +57,7 @@ import { formatCurrency, formatCompact, formatDate } from '@/lib/lifeos'
 import {
   ShieldCheck,
   Users,
+  User,
   Database,
   Wallet,
   TrendingUp,
@@ -70,6 +71,7 @@ import {
   RotateCcw,
   Crown,
   Sparkles,
+  Clock,
 } from 'lucide-react'
 
 // ===== Types =====
@@ -276,6 +278,9 @@ function OverviewTab() {
   const adminCount = data.users.filter((u) => u.role === 'admin').length
   const demoCount = data.users.filter((u) => u.role === 'demo').length
   const userCount = data.users.filter((u) => u.role === 'user').length
+  const premiumCount = data.users.filter((u) => u.level === 'premium').length
+  const standardCount = data.users.filter((u) => u.level === 'standard').length
+  const pendingCount = data.users.filter((u) => u.level === 'pending_premium').length
 
   return (
     <div className="space-y-4">
@@ -289,35 +294,44 @@ function OverviewTab() {
           subtitle={`${adminCount} admin, ${demoCount} demo, ${userCount} user`}
         />
         <StatCard
-          title="Toplam Net Değer"
-          value={formatCurrency(s.totalNetWorth)}
-          icon={Wallet}
+          title="Premium Kullanıcılar"
+          value={String(premiumCount)}
+          icon={Crown}
           accent="violet"
-          subtitle="Tüm kullanıcılar"
+          subtitle="Aktif premium üyeler"
+        />
+        <StatCard
+          title="Standart Kullanıcılar"
+          value={String(standardCount)}
+          icon={User}
+          accent="sky"
+          subtitle="Standart üyeler"
         />
         <StatCard
           title="Toplam Kayıt"
           value={s.totalRecords.toLocaleString('tr-TR')}
           icon={Database}
-          accent="sky"
+          accent="amber"
           subtitle={`${s.recentActivity.recordsLast7Days} son 7 gün`}
-        />
-        <StatCard
-          title="Toplam Borç"
-          value={formatCurrency(s.totalDebt)}
-          icon={TrendingDown}
-          accent="rose"
-          subtitle="Kredi + Kart"
         />
       </div>
 
-      {/* Mini Stat Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MiniStat icon={Building2} label="Banka" value={s.totalBankBalance} color="emerald" />
-        <MiniStat icon={ShieldCheck} label="Yatırımlar" value={s.totalAssets} color="amber" />
-        <MiniStat icon={TrendingUp} label="Gelir" value={s.totalIncome} color="sky" />
-        <MiniStat icon={TrendingDown} label="Gider" value={s.totalExpense} color="rose" />
-      </div>
+      {/* Pending premium talepleri — varsa uyarı */}
+      {pendingCount > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <Clock className="h-5 w-5 shrink-0 text-amber-500" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                {pendingCount} premium talebi onay bekliyor
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Kullanıcılar sekmesinden onaylayabilirsiniz.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Chart + Activity */}
       <div className="grid gap-4 lg:grid-cols-2">

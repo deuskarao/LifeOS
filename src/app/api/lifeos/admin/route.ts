@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (user.role !== 'admin') return fail('Admin yetkisi gerekli', 403)
 
   const [users, banks, cards, loans, assets, incomes, expenses, properties, vehicles, fuel, services] = await Promise.all([
-    db.user.findMany({ orderBy: { createdAt: 'desc' } }),
+    db.user.findMany({ orderBy: { createdAt: 'desc' }, select: { id: true, email: true, name: true, role: true, level: true, aiQuestionsUsed: true, aiQuestionsResetAt: true, createdAt: true, updatedAt: true } }),
     db.bankAccount.findMany(),
     db.creditCard.findMany(),
     db.loan.findMany(),

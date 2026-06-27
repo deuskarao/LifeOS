@@ -543,3 +543,32 @@ Stage Summary:
 - Kredi kartları banka banka gruplu, krediler otomatik borç hesaplama
 - Varlık grafikleri 0 ise "Veri yok" placeholder
 - Rapor PDF profesyonel format (6 section, grid, sayfa kırılması)
+
+---
+Task ID: pdf-fix
+Agent: full-stack-developer
+Task: Fix PDF Turkish characters and improve formatting
+
+Work Log:
+- Read reports-view.tsx and identified the tr() transliteration helper + exportPdf() function.
+- Rewrote tr() to be a thorough ASCII normalizer: handles all Turkish letters (şğçıİöüçÖÜÇŞĞ), currency symbols (₺→TL, €→EUR, £→GBP, ¥→JPY), smart quotes, em/en dashes, ellipsis, bullets, copyright/trademark/registered, degree sign, various Unicode spaces, and a final defensive strip of any remaining non-ASCII ([^\x20-\x7E]) so NO broken characters can reach jsPDF's Helvetica font.
+- Rewrote exportPdf() with a professional layout:
+  * A4 format, mm units, explicit margins (top:50, bottom:30, left:14, right:14) on every table.
+  * Page 1 cover block: 22pt bold title, 11pt period subtitle (wrapped via splitTextToSize to prevent overflow), 9pt generation timestamp, separator line.
+  * Section titles: 14pt bold with a colored emerald sidebar rectangle (3×7mm) + page-break protection (if y > pageHeight - 80 → addPage).
+  * Every autoTable uses theme:'striped' with alternateRowStyles (slate-50 stripe), right-aligned numeric columns via columnStyles.halign:'right'.
+  * Consistent font sizes per spec: title 22, section headers 14, table headers 10, body 9.
+  * Property table has explicit columnStyles with cellWidth + halign for the 6 columns.
+  * Per-section color coding: Özet=emerald, Gelir=teal, Gider=rose, Trend=violet, Emlak=violet, Araç=amber (no blue/indigo).
+  * Removed the old sky-blue color (was blue) from the income section.
+  * Every page gets a colored header bar (full-width emerald rectangle 0-14mm) with white "LifeOS Finansal Rapor" on left and period label on right.
+  * Every page gets a footer with separator line, generation timestamp on left, "Sayfa X / Y" page number on right.
+  * Applied tr() to EVERY string entering the PDF: title, period label, generation stamp, section titles, table headers, all body labels, all formatCurrency() values (so ₺→TL before rendering), percentage strings, category names, property names/types, monthly trend labels.
+  * Used splitTextToSize() for the period subtitle to handle long custom date ranges.
+  * Totals table (Yakıt/Servis/Araç Toplam) uses theme:'plain' with bold body and page-break safety.
+- Lint: reports-view.tsx passes ESLint with zero errors. (A pre-existing unrelated error in admin-view.tsx remains.)
+- TypeScript: reports-view.tsx passes tsc with zero errors.
+
+Stage Summary:
+- Files modified: src/components/lifeos/views/reports-view.tsx (only)
+- Features: thorough tr() ASCII normalizer with defensive non-ASCII strip; professional multi-page PDF with colored header bar on every page, striped tables, right-aligned numbers, section sidebar markers, footer with page numbers + timestamp; Turkish labels preserved in source, rendered as readable ASCII (ş→s, ğ→g, ı→i, etc.) so no more "bozuk" characters; ₺ symbol converted to "TL" before reaching jsPDF.
