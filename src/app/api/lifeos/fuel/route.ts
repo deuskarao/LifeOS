@@ -23,15 +23,33 @@ export async function POST(req: NextRequest) {
     const { store, user } = await getStore()
     const body = await readBody<Record<string, unknown>>(req)
     if (!body) return fail('Geçersiz istek')
-    const { vehicleId, date, liters, amount, km, fuelType, station } = body as Record<string, string | number | null>
+    const { vehicleId, date, liters, amount, fuelType, station } = body as Record<string, string | number | null>
     if (!vehicleId) return fail('Araç zorunludur')
+    const fuelAmount = Number(amount) || 0
+    const fuelDate = date ? new Date(date as string) : new Date()
+
     const item = await store.create('fuel', user.id, {
       vehicleId: vehicleId as string,
-      date: date ? new Date(date as string) : new Date(),
-      liters: Number(liters) || 0, amount: Number(amount) || 0,
-      km: Number(km) || 0, fuelType: (fuelType as string) || 'Benzin',
+      date: fuelDate,
+      liters: Number(liters) || 0, amount: fuelAmount,
+      fuelType: (fuelType as string) || 'Benzin',
       station: station as string | null,
     })
+
+    // Otomatik olarak Giderler menüsüne de düşür
+    try {
+      await store.create('expenses', user.id, {
+        category: 'Yakıt',
+        amount: fuelAmount,
+        currency: 'TRY',
+        date: fuelDate,
+        paymentMethod: 'Kart',
+        notes: `Araç yakıt kaydı — ${station || ''}`.trim(),
+      })
+    } catch {
+      // Expense oluşturma başarısız olsa bile fuel kaydı başarılı
+    }
+
     return ok(item, { status: 201 })
   } catch (e: unknown) {
     if (e instanceof Error && e.message === 'UNAUTHORIZED') return fail('Yetkisiz', 401)

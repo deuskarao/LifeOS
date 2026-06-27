@@ -78,14 +78,8 @@ export async function GET() {
         return acc
       }, {})
 
-    // Araç yakıt ve servis giderlerini kategoriye ekle (ayrı gider kaydı olmadan)
-    const thisMonthFuel = fuel.filter((f: any) => new Date(f.date) >= thisMonthStart).reduce((s: number, f: any) => s + f.amount, 0)
-    const thisMonthService = services.filter((s: any) => new Date(s.date) >= thisMonthStart).reduce((s: number, x: any) => s + x.amount, 0)
-    if (thisMonthFuel > 0) expenseByCategory['Yakıt'] = (expenseByCategory['Yakıt'] || 0) + thisMonthFuel
-    if (thisMonthService > 0) expenseByCategory['Servis/Bakım'] = (expenseByCategory['Servis/Bakım'] || 0) + thisMonthService
-
-    // Bu ayın gider totaline yakıt+servis ekle
-    const thisMonthExpenseWithVehicle = thisMonthExpense + thisMonthFuel + thisMonthService
+    // Yakıt/servis artık expenses tablosuna otomatik yazılıyor — ayrıca eklemeye gerek yok
+    const thisMonthExpenseWithVehicle = thisMonthExpense
 
     const activeContracts = properties.flatMap((p: any) => p.contracts || []).filter((c: any) => c.status === 'Aktif').length
     const monthlyRentIncome = properties.flatMap((p: any) => p.contracts || []).filter((c: any) => c.status === 'Aktif').reduce((s: number, c: any) => s + c.monthlyRent, 0)

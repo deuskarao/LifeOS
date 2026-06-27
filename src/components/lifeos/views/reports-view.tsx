@@ -8,7 +8,7 @@ import autoTable from 'jspdf-autotable'
 import { api } from '@/lib/api-client'
 import { formatCurrency, formatCompact, formatDate } from '@/lib/lifeos'
 import { PageHeader } from '../page-header'
-import { ChartCard, CHART_COLORS, CHART_COLOR_ARRAY, chartTooltipStyle, gridStroke } from './chart-card'
+import { ChartCard, CHART_COLORS, CHART_COLOR_ARRAY, chartTooltipStyle, chartItemStyle, chartLabelTooltipStyle, gridStroke } from './chart-card'
 import { toast } from 'sonner'
 import {
   FileText,
@@ -783,6 +783,8 @@ export function ReportsView() {
                 />
                 <Tooltip
                   contentStyle={chartTooltipStyle}
+                    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                   formatter={(v: number) => formatCurrency(v)}
                   cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
                 />
@@ -830,6 +832,8 @@ export function ReportsView() {
                   </Pie>
                   <Tooltip
                     contentStyle={chartTooltipStyle}
+                    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                     formatter={(v: number, n: string) => [formatCurrency(v), n]}
                   />
                 </PieChart>
@@ -883,6 +887,8 @@ export function ReportsView() {
                   </Pie>
                   <Tooltip
                     contentStyle={chartTooltipStyle}
+                    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                     formatter={(v: number, n: string) => [formatCurrency(v), n]}
                   />
                 </PieChart>
@@ -935,6 +941,8 @@ export function ReportsView() {
                 />
                 <Tooltip
                   contentStyle={chartTooltipStyle}
+                    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                   formatter={(v: number) => formatCurrency(v)}
                   cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
                 />
@@ -1116,6 +1124,8 @@ export function ReportsView() {
                 />
                 <Tooltip
                   contentStyle={chartTooltipStyle}
+                    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                   formatter={(v: number) => formatCurrency(v)}
                   cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
                 />

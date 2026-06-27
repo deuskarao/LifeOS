@@ -1015,7 +1015,7 @@ function MembershipTab() {
       />
 
       {/* Plan cards */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <PlanCard
           name="Standart"
           price="Ücretsiz"
@@ -1096,7 +1096,7 @@ function PlanCard({
       whileHover={{ y: -2 }}
     >
       <Card
-        className={`relative h-full overflow-hidden transition-shadow ${
+        className={`relative h-full transition-shadow ${
           isCurrent
             ? isPremium
               ? 'border-violet-500/60 shadow-lg shadow-violet-500/10'

@@ -670,3 +670,41 @@ Stage Summary:
 - Varlık grafiği kategori isimleri ve tooltip renkleri düzeltildi
 - Rapor PDF: tek araç maliyet tablosu + "Hazırlayan: [ad]" bilgisi
 - Deployment için NEXTAUTH_URL = https://lifeos.perainc.online, CNAME hazır
+
+---
+Task ID: 16
+Agent: main
+Task: Reports 500 fix + tooltip renk + gider grafiği + premium kart + araç/emlak giderleri
+
+Work Log:
+- Reports 500 hatası düzeltildi: incomeChange değişkeni tanımlanmamıştı, eklendi
+- Tooltip renk sorunu TÜM grafiklerde düzeltildi:
+  • chartItemStyle: rgb(241 245 249) — item değerleri artık siyah değil açık renk
+  • chartLabelTooltipStyle: rgb(148 163 184) — kategori adları gri
+  • Dashboard ve reports view'daki tüm Tooltip'lere itemStyle + labelStyle eklendi
+- Dashboard gider grafiği (BarChart) YAxis:
+  • width 80→90 (kategori isimleri tam görünsün)
+  • tick fill rgb(100 116 139) (oklch yerine rgb — daha uyumlu)
+- Premium kart sığmıyor sorunu:
+  • PlanCard overflow-hidden kaldırıldı (içerik kesilmesin)
+  • grid gap-4→gap-3 (daha sıkı yerleşim)
+  • overflow: false doğrulandı
+- Araç/emlak giderleri Giderler menüsüne düşürme:
+  • Fuel POST: yakıt kaydı oluşturulunca otomatik expense kaydı (category: 'Yakıt')
+  • Service POST: servis kaydı oluşturunca otomatik expense kaydı (category: 'Servis/Bakım')
+  • Dashboard ve reports'tan yakıt+servis ayrıca ekleme kodu kaldırıldı (çift sayım önlendi)
+  • Artık yakıt/servis girince hem araçlar sekmesinde hem giderler menüsünde görünür
+
+Test (Agent Browser):
+- Reports API: ok:true ✓ (500 hatası giderildi)
+- Reports sayfası: 5 KPI kartı ile açıldı ✓
+- Dashboard: 0 console hatası ✓
+- Premium kart: overflow false (sığıyor) ✓
+- Lint temiz
+
+Stage Summary:
+- Reports 500 hatası: incomeChange eksikti, eklendi
+- Tooltip: tüm grafiklerde item değerleri artık açık renk (siyah değil)
+- Gider grafiği: kategori isimleri 90px width ile tam görünüyor
+- Premium kart: overflow-hidden kaldırıldı, sığıyor
+- Yakıt/servis giderleri otomatik olarak Giderler menüsüne düşüyor

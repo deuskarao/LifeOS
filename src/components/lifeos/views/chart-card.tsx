@@ -52,12 +52,24 @@ export const CHART_COLOR_ARRAY = [
 
 export const chartTooltipStyle = {
   backgroundColor: 'rgb(30 41 59)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  border: '1px solid rgba(255,255,255,0.15)',
   borderRadius: '8px',
   fontSize: '12px',
   color: 'rgb(241 245 249)',
   padding: '8px 12px',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+}
+
+// Tooltip içindeki item değerleri için — siyah yerine açık renk
+export const chartItemStyle = {
+  color: 'rgb(241 245 249)',
+}
+
+// Tooltip label (kategori adı) için
+export const chartLabelTooltipStyle = {
+  color: 'rgb(148 163 184)',
+  marginBottom: '4px',
+  fontSize: '11px',
 }
 
 export const chartLabelStyle = {

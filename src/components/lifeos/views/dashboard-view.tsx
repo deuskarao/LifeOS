@@ -6,7 +6,7 @@ import { api } from '@/lib/api-client'
 import { formatCurrency, formatCompact } from '@/lib/lifeos'
 import { StatCard } from '../stat-card'
 import { PageHeader } from '../page-header'
-import { ChartCard, CHART_COLORS, CHART_COLOR_ARRAY, chartTooltipStyle, gridStroke } from './chart-card'
+import { ChartCard, CHART_COLORS, CHART_COLOR_ARRAY, chartTooltipStyle, chartItemStyle, chartLabelTooltipStyle, gridStroke } from './chart-card'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -210,7 +210,8 @@ export function DashboardView() {
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompact(v)} />
               <Tooltip
-                contentStyle={chartTooltipStyle}
+                contentStyle={chartTooltipStyle}    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                 formatter={(v: number) => formatCurrency(v)}
               />
               <Area type="monotone" dataKey="income" name="Gelir" stroke={CHART_COLORS.emerald} strokeWidth={2} fill="url(#incGrad)" />
@@ -245,7 +246,8 @@ export function DashboardView() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={chartTooltipStyle}
+                    contentStyle={chartTooltipStyle}    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                     formatter={(v: number, n: string) => [formatCurrency(v), n]}
                   />
                 </PieChart>
@@ -280,9 +282,10 @@ export function DashboardView() {
               <BarChart data={data.charts.expenseByCategory} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompact(v)} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'oklch(0.5 0.01 240)' }} axisLine={false} tickLine={false} width={80} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'rgb(100 116 139)' }} axisLine={false} tickLine={false} width={90} />
                 <Tooltip
-                  contentStyle={chartTooltipStyle}
+                  contentStyle={chartTooltipStyle}    itemStyle={chartItemStyle}
+                    labelStyle={chartLabelTooltipStyle}
                   formatter={(v: number) => formatCurrency(v)}
                   cursor={{ fill: 'oklch(0.5 0.01 240 / 0.08)' }}
                 />
