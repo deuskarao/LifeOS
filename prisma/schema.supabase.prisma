@@ -1,0 +1,211 @@
+// LifeOS — Supabase (PostgreSQL) Schema
+//
+// Bu dosya, LifeOS'u Supabase ile kullanmak içindir.
+// Kurulum:
+//   1. .env dosyasındaki DATABASE_URL'i Supabase connection string ile değiştirin
+//   2. Bu dosyayı prisma/schema.prisma ile değiştirin (veya aşağıdaki provider'ı kopyalayın)
+//   3. `bun run db:push` çalıştırın
+//   4. `bun run prisma/seed.ts` ile demo verileri yükleyin
+//
+// Supabase connection string formatı:
+//   postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ====================== FINANCE ======================
+
+model BankAccount {
+  id             String   @id @default(cuid())
+  bankName       String
+  accountName    String
+  accountType    String   @default("Vadesiz")
+  balance        Float    @default(0)
+  iban           String?
+  easyAddress    String?
+  holderName     String?
+  expectedAmount Float    @default(0)
+  color          String   @default("#3b82f6")
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("bank_accounts")
+}
+
+model CreditCard {
+  id        String   @id @default(cuid())
+  bankName  String
+  cardName  String
+  cardType  String   @default("Visa")
+  limit     Float    @default(0)
+  balance   Float    @default(0)
+  cutoffDay Int      @default(1)
+  dueDay    Int      @default(15)
+  color     String   @default("#8b5cf6")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("credit_cards")
+}
+
+model Loan {
+  id               String    @id @default(cuid())
+  loanName         String
+  lender           String
+  principalAmount  Float     @default(0)
+  remainingAmount  Float     @default(0)
+  interestRate     Float     @default(0)
+  monthlyPayment   Float     @default(0)
+  startDate        DateTime
+  endDate          DateTime?
+  installmentsTotal Int      @default(0)
+  installmentsPaid Int       @default(0)
+  category         String    @default("İhtiyaç")
+  description      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("loans")
+}
+
+model Asset {
+  id         String   @id @default(cuid())
+  assetType  String
+  name       String
+  quantity   Float    @default(0)
+  unitPrice  Float    @default(0)
+  totalValue Float    @default(0)
+  currency   String   @default("TRY")
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("assets")
+}
+
+model Income {
+  id        String   @id @default(cuid())
+  source    String
+  amount    Float    @default(0)
+  currency  String   @default("TRY")
+  category  String   @default("Maaş")
+  date      DateTime @default(now())
+  recurring Boolean  @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("incomes")
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  category      String
+  amount        Float    @default(0)
+  currency      String   @default("TRY")
+  date          DateTime @default(now())
+  paymentMethod String   @default("Nakit")
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("expenses")
+}
+
+// ====================== REAL ESTATE ======================
+
+model Property {
+  id            String   @id @default(cuid())
+  name          String
+  type          String   @default("Daire")
+  address       String?
+  city          String?
+  purchasePrice Float    @default(0)
+  currentValue  Float    @default(0)
+  monthlyRent   Float    @default(0)
+  status        String   @default("Boş")
+  size          Float?
+  rooms         String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  contracts     RentalContract[]
+
+  @@map("properties")
+}
+
+model RentalContract {
+  id          String    @id @default(cuid())
+  propertyId  String
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenantName  String
+  tenantPhone String?
+  tenantEmail String?
+  monthlyRent Float     @default(0)
+  startDate   DateTime
+  endDate     DateTime?
+  deposit     Float     @default(0)
+  status      String    @default("Aktif")
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("rental_contracts")
+}
+
+// ====================== VEHICLES ======================
+
+model Vehicle {
+  id             String   @id @default(cuid())
+  name           String
+  plate          String?
+  brand          String?
+  model          String?
+  year           Int?
+  fuelType       String   @default("Benzin")
+  currentKm      Int      @default(0)
+  color          String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  fuelRecords    VehicleFuel[]
+  serviceRecords VehicleService[]
+
+  @@map("vehicles")
+}
+
+model VehicleFuel {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  liters    Float    @default(0)
+  amount    Float    @default(0)
+  km        Int      @default(0)
+  fuelType  String   @default("Benzin")
+  station   String?
+  createdAt DateTime @default(now())
+
+  @@map("vehicle_fuel")
+}
+
+model VehicleService {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date        DateTime @default(now())
+  serviceType String
+  amount      Float    @default(0)
+  km          Int      @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@map("vehicle_services")
+}

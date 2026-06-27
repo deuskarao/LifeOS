@@ -1,11 +1,12 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import { Bell, Menu, Moon, Search, Sun } from 'lucide-react'
+import { Menu, Moon, Search, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { NotificationsBell } from './notifications-bell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,10 +93,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
         </Button>
 
-        <Button variant="ghost" size="icon" className="relative" title="Bildirimler">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-background" />
-        </Button>
+        <NotificationsBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

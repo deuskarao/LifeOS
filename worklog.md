@@ -149,3 +149,51 @@ Stage Summary:
 - 12 modül, 11 CRUD API + 2 aggregate API + 1 AI API
 - Türkçe arayüz, dark/light tema, responsive, AI destekli finansal analiz
 - Orijinal React+Vite+Supabase projesi → Next.js 16 + TypeScript + Prisma + shadcn/ui ile profesyonelleştirildi
+
+---
+Task ID: 8
+Agent: main
+Task: Bildirim sistemini çalışır hale getir + Supabase entegrasyonu
+
+Work Log:
+- `/api/lifeos/notifications` API rotası oluşturuldu — backend'de gerçek finansal verilerden 7 bildirim tipi hesaplar:
+  • Kart ödeme günü yaklaşıyor/geçti (dueDay bazlı, 7 gün önceden)
+  • Yüksek kart limit kullanımı (>85%)
+  • Kredi taksit hatırlatma + kredi sonu yaklaşıyor
+  • Kira sözleşme bitişi (60 gün içinde) + boş mülk uyarısı
+  • Bütçe aşımı (gider > gelir) + düşük tasarruf oranı (<10%)
+  • Düşük banka bakiyesi (<5000₺)
+  • Araç servis zamanı (6+ ay veya 10000+ km)
+- `src/lib/notification-prefs.ts` — useSyncExternalStore ile localStorage-backed state:
+  • useNotificationPrefs (4 tercih: paymentReminders, cardDebtAlerts, budgetLimits, weeklyReport)
+  • useReadNotifications (okundu bildirim ID'leri)
+  • Stable snapshot cache (sonsuz re-render döngüsü önleniyor)
+  • Cross-tab storage events + same-tab custom events
+- `src/components/lifeos/notifications-bell.tsx` — Popover bildirim paneli:
+  • Okunmamış sayı rozeti (animate-pulse)
+  • Tipe göre renkli ikonlar (payment/card/debt/rental/budget/balance/vehicle)
+  • Severity dot (high=rose, medium=amber, low=sky)
+  • "Tümünü okundu işaretle" butonu
+  • Bildirime tıklayınca ilgili sayfaya navigasyon
+  • 1.5 sn sonra otomatik okundu işaretleme
+  • 60 sn'de bir otomatik yenileme (refetchInterval)
+  • Boş durum: "Her şey yolunda!" ekranı
+- Topbar'daki statik Bell butonu → NotificationsBell bileşeni ile değiştirildi
+- Settings view NotificationsTab güncellendi — useNotificationPrefs hook kullanıyor, 4 toggle + bildirim tipleri listesi
+- Supabase entegrasyonu:
+  • `prisma/schema.supabase.prisma` — PostgreSQL provider + @@map tablo isimleri
+  • `.env.example` — Supabase connection string talimatları
+  • Ana schema'ya Supabase geçiş yorumu eklendi
+
+Test (Agent Browser):
+- Bell badge "3" gösteriyor (3 okunmamış: 2 kart overdue + 1 payment due)
+- Panele tıklayınca 3 bildirim listelendi (gerçek veriler: Maximum ₺3.250 7 gün gecikti, Bonus ₺8.420 4 gün gecikti, Axess ₺15.630 0 gün)
+- Bildirime tıklayınca Kredi Kartları sayfasına gitti
+- Settings'te "Kart borcu uyarıları" kapatılınca badge anında 3→1'e düştü (useSyncExternalStore senkron)
+- Panelde sadece "Axess ödemesi yaklaşıyor" kaldı (payment tipi filtrelenmedi)
+- 0 console hatası, lint temiz
+
+Stage Summary:
+- Bildirimler tamamen çalışıyor: backend hesaplama + frontend panel + prefs senkronizasyon
+- Supabase için hazır: schema.supabase.prisma + .env.example + talimatlar
+- Kullanıcı Supabase'e geçmek için: cp prisma/schema.supabase.prisma prisma/schema.prisma + .env DATABASE_URL + bun run db:push

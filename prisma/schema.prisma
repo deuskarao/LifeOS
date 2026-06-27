@@ -1,5 +1,13 @@
 // LifeOS - Comprehensive Life Management Database Schema
 // Finans, Emlak ve Araç yönetimi için tek nokta çözüm
+//
+// SUPABASE KULLANIMI:
+//   Supabase (PostgreSQL) için prisma/schema.supabase.prisma dosyasını kullanın:
+//   1. cp prisma/schema.supabase.prisma prisma/schema.prisma
+//   2. .env dosyasındaki DATABASE_URL'i Supabase connection string ile değiştirin
+//   3. bun run db:push
+//   4. bun run prisma/seed.ts
+//   Detaylı talimat: .env.example dosyasına bakın.
 
 generator client {
   provider = "prisma-client-js"

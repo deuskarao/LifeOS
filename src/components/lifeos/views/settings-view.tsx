@@ -3,6 +3,7 @@
 import { useSyncExternalStore, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { PageHeader } from '../page-header'
+import { useNotificationPrefs } from '@/lib/notification-prefs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -47,21 +48,6 @@ import {
 } from 'lucide-react'
 
 const CURRENCY_STORAGE_KEY = 'lifeos_currency'
-const NOTIF_STORAGE_KEY = 'lifeos_notifications'
-
-interface NotificationPrefs {
-  rentReminder: boolean
-  cardDebtAlert: boolean
-  budgetLimit: boolean
-  aiWeeklyReport: boolean
-}
-
-const DEFAULT_NOTIFS: NotificationPrefs = {
-  rentReminder: true,
-  cardDebtAlert: true,
-  budgetLimit: true,
-  aiWeeklyReport: false,
-}
 
 const EXPORT_RESOURCES = [
   'bank-accounts',
@@ -430,49 +416,34 @@ function CurrencyTab() {
 /* -------------------------- Notifications -------------------------- */
 
 function NotificationsTab() {
-  const [prefs, setPrefs] = useState<NotificationPrefs>(() => {
-    if (typeof window === 'undefined') return DEFAULT_NOTIFS
-    try {
-      const saved = localStorage.getItem(NOTIF_STORAGE_KEY)
-      if (saved) return { ...DEFAULT_NOTIFS, ...JSON.parse(saved) }
-    } catch {
-      /* ignore */
-    }
-    return DEFAULT_NOTIFS
-  })
-
-  const update = (key: keyof NotificationPrefs, value: boolean) => {
-    const next = { ...prefs, [key]: value }
-    setPrefs(next)
-    localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(next))
-  }
+  const { prefs, update } = useNotificationPrefs()
 
   const items: {
-    key: keyof NotificationPrefs
+    key: keyof typeof prefs
     title: string
     desc: string
     icon: typeof Bell
   }[] = [
     {
-      key: 'rentReminder',
-      title: 'Kira ödeme hatırlatıcıları',
-      desc: 'Kira ödeme gününden 3 gün önce bildirim alın',
+      key: 'paymentReminders',
+      title: 'Ödeme hatırlatıcıları',
+      desc: 'Kart ödeme günü, kredi taksiti ve kira sözleşme bitişlerinden önce bildirim alın',
       icon: Bell,
     },
     {
-      key: 'cardDebtAlert',
-      title: 'Kart borcu uyarıları',
-      desc: 'Kart borcu ödeme günü yaklaştığında uyarılın',
+      key: 'cardDebtAlerts',
+      title: 'Kart borcu & limit uyarıları',
+      desc: 'Kart borcu ödeme günü yaklaştığında ve limit kullanımı %85’i aştığında uyarılın',
       icon: Bell,
     },
     {
-      key: 'budgetLimit',
-      title: 'Bütçe limiti aşımları',
-      desc: 'Bir kategori bütçe sınırını aştığında bildirim alın',
+      key: 'budgetLimits',
+      title: 'Bütçe & tasarruf uyarıları',
+      desc: 'Aylık gider gelirinizi aştığında ve tasarruf oranı düştüğünde bildirim alın',
       icon: Bell,
     },
     {
-      key: 'aiWeeklyReport',
+      key: 'weeklyReport',
       title: 'AI haftalık rapor',
       desc: 'Her pazartesi finansal özet ve AI önerileri alın',
       icon: Bell,
@@ -486,43 +457,55 @@ function NotificationsTab() {
           <Bell className="h-4 w-4 text-primary" />
           Bildirim Tercihleri
         </CardTitle>
-        <CardDescription>Hangi durumlarda bildirim alacağınızı seçin</CardDescription>
+        <CardDescription>
+          Hangi durumlarda bildirim alacağınızı seçin. Tercihleriniz tarayıcınızda saklanır ve üst paneldeki bildirim ikonuna anında yansır.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {items.map((item) => {
-          const Icon = item.icon
-          const enabled = prefs[item.key]
-          return (
-            <div
-              key={item.key}
-              className="flex items-center justify-between gap-4 rounded-lg border bg-card/50 p-4 transition-colors hover:bg-muted/30"
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                    enabled
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
+            const Icon = item.icon
+            const enabled = prefs[item.key]
+            return (
+              <div
+                key={item.key}
+                className="flex items-center justify-between gap-4 rounded-lg border bg-card/50 p-4 transition-colors hover:bg-muted/30"
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                      enabled
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{item.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{item.desc}</p>
-                </div>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={(v) => update({ [item.key]: v })}
+                  aria-label={item.title}
+                />
               </div>
-              <Switch
-                checked={enabled}
-                onCheckedChange={(v) => update(item.key, v)}
-                aria-label={item.title}
-              />
-            </div>
-          )
-        })}
-        <p className="pt-2 text-xs text-muted-foreground">
-          Bildirim tercihleri tarayıcınızda saklanır.
-        </p>
+            )
+          })
+        }
+        <div className="mt-3 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Bildirim tipleri:</p>
+          <ul className="mt-1.5 space-y-1">
+            <li>• Kart ödeme günü yaklaştığında (7 gün önceden)</li>
+            <li>• Kart limit kullanımı %85’i aştığında</li>
+            <li>• Kredi taksiti ve kredi sonu yaklaştığında</li>
+            <li>• Kira sözleşmesi 60 gün içinde bitiyorsa</li>
+            <li>• Aylık gider geliri aştığında (bütçe açığı)</li>
+            <li>• Düşük banka bakiyesi (&lt;5.000₺)</li>
+            <li>• Araç servis zamanı geldiğinde</li>
+          </ul>
+        </div>
       </CardContent>
     </Card>
   )
